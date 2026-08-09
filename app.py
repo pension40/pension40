@@ -5,6 +5,7 @@
 # ============================================================
 
 import streamlit as st
+from datetime import datetime
 
 # ============================================================
 # MÓDULOS DEL PROYECTO
@@ -47,6 +48,8 @@ try:
     from calculador import (
         calcular_escenario,
         resumen_escenario,
+        proyectar_semanas_y_sbc_a_retiro,
+        precalificar,
         CalculadorPensionError,
     )
     CALCULADOR_DISPONIBLE = True
@@ -107,6 +110,11 @@ valores_iniciales = {
     "tipo_asignacion": "ninguna",
     "meses_m40": 58,
     "pdf_reporte_bytes": None,
+    "tiene_hijos": False,
+    "proyeccion": None,
+    "precalificacion": None,
+    "modo_captura": "pdf",
+    "datos_manuales_validos": False,
 }
 
 for clave, valor in valores_iniciales.items():
@@ -127,29 +135,43 @@ st.markdown(
         --azul-oscuro: #0B2545;
         --azul-principal: #134074;
         --azul-medio: #1B6CA8;
-        --azul-claro: #E8F1FA;
+        --azul-claro: #EAF2FA;
         --azul-hover: #0F5A8F;
-        --verde-ok: #1E8A4C;
+        --verde-ok: #14804A;
+        --verde-claro: #E7F6ED;
+        --rojo-alerta: #B3261E;
+        --rojo-claro: #FCEAEA;
         --gris-texto: #3B3B3B;
-        --gris-borde: #D9E2EC;
+        --gris-suave: #6B7280;
+        --gris-borde: #E2E8F0;
+        --gris-fondo: #F7F9FC;
     }
 
+    /* Contenedor general más angosto y compacto */
     .main .block-container {
-        max-width: 880px;
-        padding-top: 1.5rem;
-        padding-bottom: 4rem;
+        max-width: 720px;
+        padding-top: 1rem;
+        padding-bottom: 2.5rem;
     }
 
-    /* ---------- ENCABEZADO ---------- */
+    /* Reduce espacios verticales por default de Streamlit */
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0.4rem;
+    }
+
+    h1, h2, h3 { margin-bottom: 0.3rem; }
+
+    /* ---------- ENCABEZADO COMPACTO ---------- */
 
     .header-wrap {
         text-align: center;
-        margin-bottom: 1.6rem;
+        margin-bottom: 0.8rem;
+        padding-top: 0.2rem;
     }
 
     .titulo {
         text-align: center;
-        font-size: 2.6rem;
+        font-size: 1.9rem;
         font-weight: 800;
         color: var(--azul-oscuro);
         margin-bottom: 0.1rem;
@@ -158,42 +180,52 @@ st.markdown(
 
     .subtitulo {
         text-align: center;
-        font-size: 1.05rem;
-        color: var(--azul-medio);
+        font-size: 0.9rem;
+        color: var(--gris-suave);
         font-weight: 500;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0;
     }
 
     .linea-divisora {
-        height: 4px;
-        width: 90px;
+        height: 3px;
+        width: 60px;
         background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
-        margin: 0.6rem auto 1.8rem auto;
+        margin: 0.5rem auto 0.9rem auto;
         border-radius: 4px;
     }
 
-    /* ---------- TARJETAS ---------- */
+    /* ---------- TARJETAS COMPACTAS ---------- */
 
     .card {
-        padding: 1.5rem 1.6rem;
-        border-radius: 14px;
+        padding: 0.9rem 1.1rem;
+        border-radius: 10px;
         border: 1px solid var(--gris-borde);
         background: #FFFFFF;
-        box-shadow: 0 2px 10px rgba(11, 37, 69, 0.06);
-        margin-bottom: 1.2rem;
+        box-shadow: 0 1px 4px rgba(11, 37, 69, 0.05);
+        margin-bottom: 0.7rem;
     }
 
-    .card h3 {
+    .card h3, .card h4 {
         color: var(--azul-oscuro);
         margin-top: 0;
+        font-size: 1rem;
     }
 
     .card-azul {
-        padding: 1.5rem 1.6rem;
-        border-radius: 14px;
+        padding: 0.9rem 1.1rem;
+        border-radius: 10px;
         background: var(--azul-claro);
-        border: 1px solid rgba(27, 108, 168, 0.25);
-        margin-bottom: 1.2rem;
+        border: 1px solid rgba(27, 108, 168, 0.2);
+        margin-bottom: 0.7rem;
+    }
+
+    .card-compacta {
+        padding: 0.6rem 0.9rem;
+        border-radius: 8px;
+        border: 1px solid var(--gris-borde);
+        background: var(--gris-fondo);
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
     }
 
     /* ---------- PASO / SECCIÓN ---------- */
@@ -201,73 +233,106 @@ st.markdown(
     .paso-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
         background: var(--azul-oscuro);
         color: white;
         font-weight: 700;
-        font-size: 0.85rem;
-        padding: 0.35rem 0.9rem;
+        font-size: 0.72rem;
+        padding: 0.2rem 0.7rem;
         border-radius: 999px;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.4rem;
+        letter-spacing: 0.02em;
+    }
+
+    /* ---------- MINI DASHBOARD DE MÉTRICAS ---------- */
+
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin: 0.5rem 0 0.6rem 0;
+    }
+
+    .metric-box {
+        background: #FFFFFF;
+        border: 1px solid var(--gris-borde);
+        border-radius: 10px;
+        padding: 0.6rem 0.4rem;
+        text-align: center;
+    }
+
+    .metric-box .valor {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--azul-oscuro);
+        line-height: 1.15;
+    }
+
+    .metric-box .etiqueta {
+        font-size: 0.68rem;
+        color: var(--gris-suave);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        margin-top: 0.15rem;
     }
 
     /* ---------- PRECIO ---------- */
 
     .precio {
         text-align: center;
-        font-size: 2.4rem;
+        font-size: 1.9rem;
         font-weight: 800;
         color: var(--azul-oscuro);
-        margin-bottom: 0.2rem;
+        margin-bottom: 0.1rem;
     }
 
     .precio-detalle {
         text-align: center;
-        font-size: 0.95rem;
-        color: var(--gris-texto);
-        opacity: 0.8;
-        margin-bottom: 0.6rem;
+        font-size: 0.82rem;
+        color: var(--gris-suave);
+        margin-bottom: 0.4rem;
     }
 
-    .centrado {
-        text-align: center;
-    }
+    .centrado { text-align: center; }
 
-    /* ---------- LISTA DE BENEFICIOS ---------- */
+    /* ---------- LISTA DE BENEFICIOS COMPACTA ---------- */
 
     .beneficios {
         list-style: none;
         padding-left: 0;
-        margin: 0.6rem 0 0.2rem 0;
+        margin: 0.4rem 0 0.1rem 0;
+        columns: 2;
+        column-gap: 1rem;
     }
 
     .beneficios li {
-        padding: 0.35rem 0;
+        padding: 0.15rem 0;
         color: var(--gris-texto);
-        font-size: 0.98rem;
+        font-size: 0.82rem;
+        break-inside: avoid;
     }
 
     .beneficios li::before {
         content: "✓";
         color: var(--verde-ok);
         font-weight: 800;
-        margin-right: 0.6rem;
+        margin-right: 0.4rem;
     }
 
     /* ---------- BOTONES ---------- */
 
     .stButton > button {
         width: 100%;
-        min-height: 3rem;
-        border-radius: 10px;
+        min-height: 2.6rem;
+        border-radius: 8px;
         font-weight: 700;
+        font-size: 0.9rem;
         border: none;
         transition: transform 0.05s ease-in-out;
     }
 
-    .stButton > button:hover {
-        transform: translateY(-1px);
-    }
+    .stButton > button:hover { transform: translateY(-1px); }
 
     .stButton > button[kind="primary"] {
         background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
@@ -275,12 +340,54 @@ st.markdown(
 
     div[data-testid="stDownloadButton"] > button {
         width: 100%;
-        min-height: 3.2rem;
-        border-radius: 10px;
+        min-height: 2.8rem;
+        border-radius: 8px;
         font-weight: 700;
-        background: linear-gradient(90deg, var(--verde-ok), #166B3A);
+        background: linear-gradient(90deg, var(--verde-ok), #0F6B3C);
         color: white;
         border: none;
+    }
+
+    /* ---------- BANNER DE PRECALIFICACIÓN (TEASER) ---------- */
+
+    .banner-precal {
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        margin: 0.6rem 0 0.8rem 0;
+        text-align: center;
+    }
+
+    .banner-precal.ok {
+        background: linear-gradient(135deg, var(--verde-claro), #F3FBF6);
+        border: 1.5px solid rgba(20, 128, 74, 0.35);
+    }
+
+    .banner-precal.no {
+        background: linear-gradient(135deg, var(--rojo-claro), #FDF4F4);
+        border: 1.5px solid rgba(179, 38, 30, 0.3);
+    }
+
+    .banner-precal .icono { font-size: 1.6rem; }
+
+    .banner-precal .titulo-banner {
+        font-weight: 800;
+        font-size: 1.05rem;
+        margin: 0.25rem 0 0.1rem 0;
+    }
+
+    .banner-precal.ok .titulo-banner { color: var(--verde-ok); }
+    .banner-precal.no .titulo-banner { color: var(--rojo-alerta); }
+
+    .banner-precal .subtexto {
+        font-size: 0.82rem;
+        color: var(--gris-texto);
+    }
+
+    .banner-precal .pension-grande {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--azul-oscuro);
+        margin: 0.3rem 0;
     }
 
     /* ---------- BANNER DE DESBLOQUEO ---------- */
@@ -288,32 +395,41 @@ st.markdown(
     .banner-desbloqueado {
         background: linear-gradient(90deg, #E6F4EA, #EFFAF2);
         border: 1px solid rgba(30, 138, 76, 0.35);
-        border-radius: 14px;
-        padding: 1.2rem 1.4rem;
+        border-radius: 12px;
+        padding: 0.9rem 1.1rem;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.7rem;
     }
 
-    .banner-desbloqueado .icono {
-        font-size: 1.8rem;
-    }
+    .banner-desbloqueado .icono { font-size: 1.5rem; }
 
     .banner-desbloqueado .texto-principal {
         font-weight: 800;
         color: var(--verde-ok);
-        font-size: 1.15rem;
-        margin: 0.3rem 0 0.1rem 0;
+        font-size: 1rem;
+        margin: 0.2rem 0 0.05rem 0;
+    }
+
+    /* ---------- TABS MÁS COMPACTAS ---------- */
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.3rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 2.4rem;
+        font-weight: 600;
+        font-size: 0.85rem;
     }
 
     /* ---------- FOOTER ---------- */
 
     .footer {
         text-align: center;
-        font-size: 0.8rem;
-        color: var(--gris-texto);
-        opacity: 0.65;
-        margin-top: 3rem;
-        line-height: 1.5;
+        font-size: 0.72rem;
+        color: var(--gris-suave);
+        margin-top: 1.8rem;
+        line-height: 1.4;
     }
 
     </style>
@@ -391,49 +507,72 @@ def capturar_datos():
         key="nombre_cliente",
     )
 
-    correo = st.text_input(
-        "Correo electrónico",
-        placeholder="correo@ejemplo.com",
-        key="correo_cliente",
-    )
+    col_correo, col_tel = st.columns(2)
 
-    telefono = st.text_input(
-        "WhatsApp",
-        placeholder="10 dígitos",
-        key="telefono_cliente",
-    )
+    with col_correo:
 
-    col_edad, col_asignacion = st.columns(2)
+        correo = st.text_input(
+            "Correo electrónico",
+            placeholder="correo@ejemplo.com",
+            key="correo_cliente",
+        )
+
+    with col_tel:
+
+        telefono = st.text_input(
+            "WhatsApp",
+            placeholder="10 dígitos",
+            key="telefono_cliente",
+        )
+
+    col_edad, col_hijos, col_asignacion = st.columns(3)
 
     with col_edad:
 
         edad_retiro = st.number_input(
-            "Edad de retiro a simular",
+            "Edad de retiro",
             min_value=60,
             max_value=65,
             value=st.session_state.get("edad_retiro", 60),
             step=1,
             key="edad_retiro_input",
-            help="El cálculo de pensión Ley 73 aplica para edades entre 60 y 65 años.",
+            help="Edad a la que planeas pensionarte (60 a 65 años).",
+        )
+
+    with col_hijos:
+
+        tiene_hijos = st.selectbox(
+            "¿Tienes hijos?",
+            options=["No", "Sí"],
+            key="hijos_input",
+            help="Los hijos menores o en edad de estudiar pueden dar derecho a asignación familiar.",
         )
 
     with col_asignacion:
 
         opciones_asignacion = {
             "Ninguna": "ninguna",
-            "Cónyuge (esposa/esposo)": "conyuge",
+            "Cónyuge": "conyuge",
             "Hijos": "hijos",
             "Padres": "padres",
-            "Ayuda asistencial": "asistencia",
+            "Asistencial": "asistencia",
         }
+
+        etiqueta_default = (
+            "Hijos" if tiene_hijos == "Sí" else "Ninguna"
+        )
 
         etiqueta_asignacion = st.selectbox(
             "Asignación familiar",
             options=list(opciones_asignacion.keys()),
+            index=list(opciones_asignacion.keys()).index(
+                etiqueta_default
+            ),
             key="asignacion_input",
         )
 
     st.session_state.edad_retiro = int(edad_retiro)
+    st.session_state.tiene_hijos = (tiene_hijos == "Sí")
     st.session_state.tipo_asignacion = opciones_asignacion[etiqueta_asignacion]
 
     st.session_state.datos_cliente = {
@@ -444,7 +583,7 @@ def capturar_datos():
 
 
 # ============================================================
-# CARGA DEL PDF
+# ENTRADA DE DATOS IMSS: PDF O CAPTURA MANUAL
 # ============================================================
 
 def cargar_pdf():
@@ -453,30 +592,139 @@ def cargar_pdf():
         '<div class="paso-badge">PASO 2</div>',
         unsafe_allow_html=True,
     )
-    st.subheader("Sube tu Constancia de Semanas Cotizadas")
+    st.subheader("Datos del IMSS")
 
-    st.write(
-        "El documento debe ser el PDF emitido por el IMSS."
+    tab_pdf, tab_manual = st.tabs(
+        ["📄 Subir Constancia (PDF)", "✏️ Captura manual"]
     )
 
-    archivo = st.file_uploader(
-        "Seleccionar PDF",
-        type=["pdf"],
-        accept_multiple_files=False,
-        key="archivo_imss",
-    )
-
-    if archivo:
-
-        st.session_state.pdf = archivo
-
-        st.success(
-            f"PDF recibido: {archivo.name}"
-        )
+    with tab_pdf:
 
         st.caption(
-            f"Tamaño: {archivo.size / 1024:.1f} KB"
+            "Sube el PDF de tu Constancia de Semanas Cotizadas del IMSS."
         )
+
+        archivo = st.file_uploader(
+            "Seleccionar PDF",
+            type=["pdf"],
+            accept_multiple_files=False,
+            key="archivo_imss",
+            label_visibility="collapsed",
+        )
+
+        if archivo:
+
+            st.session_state.pdf = archivo
+            st.session_state.modo_captura = "pdf"
+
+            st.success(
+                f"📎 {archivo.name} ({archivo.size / 1024:.0f} KB)"
+            )
+
+    with tab_manual:
+
+        st.caption(
+            "¿No tienes el PDF a la mano? Captura tus datos manualmente."
+        )
+
+        col_m1, col_m2 = st.columns(2)
+
+        with col_m1:
+
+            semanas_manual = st.number_input(
+                "Semanas cotizadas actuales",
+                min_value=0,
+                max_value=3000,
+                value=0,
+                step=1,
+                key="semanas_manual",
+            )
+
+        with col_m2:
+
+            sbc_manual = st.number_input(
+                "SBC promedio diario ($)",
+                min_value=0.0,
+                max_value=10000.0,
+                value=0.0,
+                step=10.0,
+                key="sbc_manual",
+            )
+
+        fecha_nac_manual = st.date_input(
+            "Fecha de nacimiento",
+            value=None,
+            min_value=datetime(1940, 1, 1),
+            max_value=datetime.now(),
+            key="fecha_nac_manual",
+            format="DD/MM/YYYY",
+        )
+
+        primera_fecha_manual = st.date_input(
+            "Fecha de tu primera cotización IMSS",
+            value=None,
+            min_value=datetime(1940, 1, 1),
+            max_value=datetime.now(),
+            key="primera_fecha_manual",
+            format="DD/MM/YYYY",
+            help="Necesaria para confirmar si aplicas para Ley 73 (antes del 1 de julio de 1997).",
+        )
+
+        if st.button(
+            "Usar estos datos manuales",
+            key="btn_usar_manual",
+        ):
+
+            if semanas_manual <= 0 or sbc_manual <= 0 or not fecha_nac_manual or not primera_fecha_manual:
+
+                st.error(
+                    "Completa semanas, SBC, fecha de nacimiento "
+                    "y primera fecha de cotización."
+                )
+                st.session_state.datos_manuales_validos = False
+
+            else:
+
+                st.session_state.modo_captura = "manual"
+                st.session_state.datos_manuales_validos = True
+
+                fecha_nacimiento_dt = datetime(
+                    fecha_nac_manual.year,
+                    fecha_nac_manual.month,
+                    fecha_nac_manual.day,
+                )
+
+                primera_fecha_dt = datetime(
+                    primera_fecha_manual.year,
+                    primera_fecha_manual.month,
+                    primera_fecha_manual.day,
+                )
+
+                edad_actual_manual = (
+                    datetime.now().year - fecha_nacimiento_dt.year
+                    - (
+                        (datetime.now().month, datetime.now().day)
+                        < (fecha_nacimiento_dt.month, fecha_nacimiento_dt.day)
+                    )
+                )
+
+                ley_73_manual = primera_fecha_dt <= datetime(1997, 6, 30)
+
+                st.session_state.resultado_extraccion = {
+                    "nombre": st.session_state.datos_cliente.get("nombre", ""),
+                    "nss": None,
+                    "curp": None,
+                    "fecha_nacimiento": fecha_nacimiento_dt,
+                    "edad_actual": edad_actual_manual,
+                    "primera_fecha_cotizacion": primera_fecha_dt,
+                    "ley_73": ley_73_manual,
+                    "semanas_cotizadas": float(semanas_manual),
+                    "sbc_promedio": float(sbc_manual),
+                }
+
+                st.success(
+                    "Datos manuales cargados. Ya puedes calcular tu precalificación."
+                )
 
 
 # ============================================================
@@ -504,9 +752,16 @@ def validar_datos():
             "Ingresa tu WhatsApp."
         )
 
-    if st.session_state.pdf is None:
+    modo = st.session_state.modo_captura
+
+    if modo == "pdf" and st.session_state.pdf is None:
         errores.append(
-            "Debes subir tu Constancia de Semanas Cotizadas."
+            "Sube tu Constancia de Semanas Cotizadas o usa la captura manual."
+        )
+
+    if modo == "manual" and not st.session_state.datos_manuales_validos:
+        errores.append(
+            "Completa y confirma tus datos manuales (botón 'Usar estos datos manuales')."
         )
 
     return errores
@@ -517,104 +772,178 @@ def validar_datos():
 # ============================================================
 
 def procesar_informacion():
+
     errores = validar_datos()
     if errores:
         for error in errores:
             st.error(error)
         return
-        
-    if not EXTRACTOR_DISPONIBLE:
-        st.error("El módulo extractor.py todavía no está disponible correctamente.")
+
+    modo = st.session_state.modo_captura
+
+    # --------------------------------------------------------
+    # MODO PDF: ejecutar extracción real
+    # --------------------------------------------------------
+
+    if modo == "pdf":
+
+        if not EXTRACTOR_DISPONIBLE:
+            st.error("El módulo extractor.py todavía no está disponible correctamente.")
+            return
+
+        with st.spinner("Analizando tu información del IMSS..."):
+            try:
+                resultado = analizar_pdf_streamlit(st.session_state.pdf)
+                st.session_state.resultado_extraccion = resultado
+
+            except Ley97Error as error:
+                st.session_state.resultado_extraccion = None
+                st.error("❌ Este documento corresponde al régimen de Ley 97 del IMSS.")
+                st.warning(str(error))
+                return
+            except SemanasInsuficientesError as error:
+                st.session_state.resultado_extraccion = None
+                st.warning(str(error))
+                return
+            except ExtractorPensionError as error:
+                st.session_state.resultado_extraccion = None
+                st.error(f"No fue posible analizar el documento: {error}")
+                return
+            except Exception as error:
+                st.session_state.resultado_extraccion = None
+                st.error("Ocurrió un error al procesar el PDF.")
+                st.exception(error)
+                return
+
+    # --------------------------------------------------------
+    # A partir de aquí, "resultado_extraccion" ya existe
+    # (llenado por el PDF arriba, o por la captura manual en
+    # cargar_pdf()).
+    # --------------------------------------------------------
+
+    resultado = st.session_state.resultado_extraccion
+
+    if not resultado:
+        st.error("No hay datos del IMSS para calcular. Sube tu PDF o usa la captura manual.")
         return
-        
-    with st.spinner("Analizando tu información del IMSS y registrando prospecto..."):
-        try:
-            # 1. Ejecutar extracción del PDF
-            resultado = analizar_pdf_streamlit(st.session_state.pdf)
-            st.session_state.resultado_extraccion = resultado
-            
-            # 2. Sanitizar datos para la base de datos (Supabase espera tipos estrictos)
-            semanas_raw = resultado.get("semanas_cotizadas", 0)
-            semanas_int = int(float(semanas_raw)) if semanas_raw else 0
-            
-            sbc_raw = resultado.get("sbc_promedio", 0.0)
-            sbc_float = float(sbc_raw) if sbc_raw else 0.0
-            
-            # Extraer NSS del diccionario o lista si viene múltiple
-            nss_data = resultado.get("nss", None)
-            nss_str = nss_data[0] if isinstance(nss_data, list) else str(nss_data)
-            
-            # Importar la función desde base_datos.py de forma local si es necesario
-            from base_datos import guardar_prospecto
-            
-            # 3. Guardar el prospecto en Supabase de forma automática
-            prospecto_guardado = guardar_prospecto(
-                nombre=st.session_state.datos_cliente.get("nombre", "Usuario Web"),
-                correo=st.session_state.datos_cliente.get("correo", ""),
-                telefono=st.session_state.datos_cliente.get("telefono", ""),
-                nss=nss_str,
-                semanas_cotizadas=semanas_int,
-                sbc_promedio=sbc_float,
-                fecha_nacimiento=None, # Se actualizará en la etapa de simulación
-                estatus_pago=st.session_state.pago_confirmado,
-                codigo_promocional=st.session_state.codigo_promo if st.session_state.promo_validada else None
+
+    # --------------------------------------------------------
+    # Proyección de semanas y SBC a la edad de retiro elegida
+    # --------------------------------------------------------
+
+    if not CALCULADOR_DISPONIBLE:
+        st.error("El módulo calculador.py todavía no está disponible correctamente.")
+        return
+
+    try:
+        uma_actual = obtener_uma()
+    except Exception:
+        uma_actual = 113.14
+
+    fecha_nacimiento = resultado.get("fecha_nacimiento")
+
+    try:
+
+        if fecha_nacimiento:
+
+            proyeccion = proyectar_semanas_y_sbc_a_retiro(
+                fecha_nacimiento=fecha_nacimiento,
+                semanas_actuales=float(resultado.get("semanas_cotizadas") or 0),
+                sbc_promedio_actual=float(resultado.get("sbc_promedio") or 0),
+                edad_retiro_deseada=st.session_state.edad_retiro,
             )
-            
-            # 4. Almacenar el ID generado por Supabase para futuras actualizaciones o descargas
-            if prospecto_guardado and "id" in prospecto_guardado:
-                st.session_state.prospecto_id = prospecto_guardado["id"]
 
-            # 5. Ejecutar el cálculo financiero real (pensión + Modalidad 40)
-            if CALCULADOR_DISPONIBLE:
+        else:
 
-                try:
-                    uma_actual = obtener_uma()
-                except Exception:
-                    uma_actual = 113.14
+            # Sin fecha de nacimiento no se puede proyectar a
+            # futuro; se usa el estado actual como aproximación.
+            proyeccion = {
+                "edad_actual": resultado.get("edad_actual"),
+                "fecha_retiro_estimada": None,
+                "anios_para_retiro": None,
+                "semanas_actuales": float(resultado.get("semanas_cotizadas") or 0),
+                "semanas_adicionales_estimadas": 0,
+                "semanas_totales_estimadas": float(resultado.get("semanas_cotizadas") or 0),
+                "sbc_promedio_proyectado": float(resultado.get("sbc_promedio") or 0),
+            }
 
-                try:
+        st.session_state.proyeccion = proyeccion
 
-                    st.session_state.resultado_calculo = calcular_escenario(
-                        sbc_promedio=sbc_float,
-                        semanas=semanas_int,
-                        edad=st.session_state.edad_retiro,
-                        uma=uma_actual,
-                        tipo_asignacion=st.session_state.tipo_asignacion,
-                        meses_modalidad_40=st.session_state.meses_m40,
-                    )
+        precal = precalificar(
+            ley_73=bool(resultado.get("ley_73")),
+            semanas_totales_estimadas=proyeccion["semanas_totales_estimadas"],
+            sbc_promedio=proyeccion["sbc_promedio_proyectado"],
+            edad_retiro_deseada=st.session_state.edad_retiro,
+            uma=uma_actual,
+            tipo_asignacion=st.session_state.tipo_asignacion,
+        )
 
-                except CalculadorPensionError as error:
-                    st.session_state.resultado_calculo = None
-                    st.warning(
-                        f"No fue posible calcular tu escenario financiero: {error}"
-                    )
+        st.session_state.precalificacion = precal
 
-            else:
-                st.session_state.resultado_calculo = None
+        if precal.get("califica"):
 
-        except Ley97Error as error:
-            st.session_state.resultado_extraccion = None
-            st.error("❌ Este documento corresponde al régimen de Ley 97 del IMSS.")
-            st.warning(str(error))
-            return
-        except SemanasInsuficientesError as error:
-            st.session_state.resultado_extraccion = None
-            st.warning(str(error))
-            return
-        except ExtractorPensionError as error:
-            st.session_state.resultado_extraccion = None
-            st.error(f"No fue posible analizar el documento: {error}")
-            return
-        except Exception as error:
-            st.session_state.resultado_extraccion = None
-            st.error("Ocurrió un error al procesar el PDF o guardar en la base de datos.")
-            st.exception(error)
-            return
-            
-    st.success("✅ Tu documento fue analizado y registrado correctamente.")
+            st.session_state.resultado_calculo = calcular_escenario(
+                sbc_promedio=proyeccion["sbc_promedio_proyectado"],
+                semanas=proyeccion["semanas_totales_estimadas"],
+                edad=st.session_state.edad_retiro,
+                uma=uma_actual,
+                tipo_asignacion=st.session_state.tipo_asignacion,
+                meses_modalidad_40=st.session_state.meses_m40,
+            )
+
+        else:
+
+            st.session_state.resultado_calculo = None
+
+    except (CalculadorPensionError, ValueError) as error:
+
+        st.session_state.proyeccion = None
+        st.session_state.precalificacion = None
+        st.session_state.resultado_calculo = None
+        st.warning(f"No fue posible calcular tu precalificación: {error}")
+        return
+
+    # --------------------------------------------------------
+    # Registrar prospecto en Supabase (best-effort, no bloquea
+    # el flujo si falla).
+    # --------------------------------------------------------
+
+    try:
+
+        semanas_int = int(float(resultado.get("semanas_cotizadas") or 0))
+        sbc_float = float(resultado.get("sbc_promedio") or 0)
+
+        nss_data = resultado.get("nss")
+        nss_str = nss_data[0] if isinstance(nss_data, list) else (str(nss_data) if nss_data else "")
+
+        from base_datos import guardar_prospecto
+
+        prospecto_guardado = guardar_prospecto(
+            nombre=st.session_state.datos_cliente.get("nombre", "Usuario Web"),
+            correo=st.session_state.datos_cliente.get("correo", ""),
+            telefono=st.session_state.datos_cliente.get("telefono", ""),
+            nss=nss_str,
+            semanas_cotizadas=semanas_int,
+            sbc_promedio=sbc_float,
+            fecha_nacimiento=None,
+            estatus_pago=st.session_state.pago_confirmado,
+            codigo_promocional=st.session_state.codigo_promo if st.session_state.promo_validada else None,
+        )
+
+        if prospecto_guardado and "id" in prospecto_guardado:
+            st.session_state.prospecto_id = prospecto_guardado["id"]
+
+    except Exception:
+        # Registrar el prospecto es best-effort: si Supabase
+        # falla, el usuario debe poder seguir viendo su
+        # precalificación de todas formas.
+        pass
+
+    st.success("✅ Precalificación lista.")
+
 
 # ============================================================
-# RESULTADO
+# RESULTADO: BANNER DE PRECALIFICACIÓN
 # ============================================================
 
 def mostrar_resultado():
@@ -622,99 +951,109 @@ def mostrar_resultado():
     if not st.session_state.resultado_extraccion:
         return
 
-    st.divider()
+    if not st.session_state.precalificacion:
+        return
 
     st.markdown(
         '<div class="paso-badge">PASO 3</div>',
         unsafe_allow_html=True,
     )
-    st.subheader("Resultado de tu análisis")
+    st.subheader("Tu precalificación")
 
     resultado = st.session_state.resultado_extraccion
-    calculo = st.session_state.resultado_calculo
+    proyeccion = st.session_state.proyeccion
+    precal = st.session_state.precalificacion
 
-    semanas = resultado.get(
-        "semanas_cotizadas",
-        "No disponible",
-    )
+    edad_retiro = st.session_state.edad_retiro
 
-    sbc = resultado.get(
-        "sbc_promedio",
-        None,
-    )
+    # --------------------------------------------------------
+    # Mini dashboard de métricas (siempre visible)
+    # --------------------------------------------------------
+
+    semanas_hoy = resultado.get("semanas_cotizadas")
+    semanas_proyectadas = proyeccion.get("semanas_totales_estimadas") if proyeccion else semanas_hoy
+    sbc = proyeccion.get("sbc_promedio_proyectado") if proyeccion else resultado.get("sbc_promedio")
+
+    ley_73_texto = "Ley 73 ✓" if resultado.get("ley_73") else "Ley 97"
+
+    fecha_retiro_txt = "—"
+    if proyeccion and proyeccion.get("fecha_retiro_estimada"):
+        fecha_retiro_txt = proyeccion["fecha_retiro_estimada"].strftime("%m/%Y")
 
     st.markdown(
-        """
-        <div class="card">
-
-        <h3>🎯 Tu análisis preliminar</h3>
-
+        f"""
+        <div class="metric-grid">
+            <div class="metric-box">
+                <div class="valor">{ley_73_texto}</div>
+                <div class="etiqueta">Régimen</div>
+            </div>
+            <div class="metric-box">
+                <div class="valor">{semanas_proyectadas:,.0f}</div>
+                <div class="etiqueta">Semanas a los {edad_retiro} años</div>
+            </div>
+            <div class="metric-box">
+                <div class="valor">${sbc:,.0f}</div>
+                <div class="etiqueta">SBC promedio</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    col1, col2, col3 = st.columns(3)
+    # --------------------------------------------------------
+    # Banner llamativo de precalificación
+    # --------------------------------------------------------
 
-    with col1:
+    if precal.get("califica"):
 
-        st.metric(
-            "Semanas cotizadas",
-            semanas,
+        pension_mensual = precal.get("pension_mensual_estimada", 0)
+
+        st.markdown(
+            f"""
+            <div class="banner-precal ok">
+                <div class="icono">🎉</div>
+                <div class="titulo-banner">¡Buenas noticias! Precalificas para Ley 73</div>
+                <div class="pension-grande">${pension_mensual:,.0f}<span style="font-size:1rem;">/mes</span></div>
+                <div class="subtexto">
+                    Pensión mensual estimada al retirarte a los {edad_retiro} años.
+                    Esto es solo el punto de partida — con la estrategia de
+                    Modalidad&nbsp;40 tu pensión puede ser considerablemente mayor.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    with col2:
-
-        if sbc is not None:
-
-            st.metric(
-                "SBC promedio",
-                f"${float(sbc):,.2f}",
-            )
-
-        else:
-
-            st.metric(
-                "SBC promedio",
-                "No disponible",
-            )
-
-    with col3:
-
-        if calculo:
-
-            pension_mensual = calculo.get(
-                "pension", {}
-            ).get("pension_final_mensual")
-
-            st.metric(
-                "Pensión mensual estimada",
-                f"${pension_mensual:,.2f}" if pension_mensual is not None else "No disponible",
-            )
-
-        else:
-
-            st.metric(
-                "Pensión mensual estimada",
-                "No disponible",
-            )
-
-    if calculo:
-
-        st.caption(
-            f"Estimación calculada para retiro a los "
-            f"{st.session_state.edad_retiro} años. "
-            "El reporte completo incluye la estrategia de "
-            "Modalidad 40, inversión y retorno estimado."
+        st.markdown(
+            f"""
+            <div class="centrado" style="font-weight:700; color:var(--azul-oscuro); margin-bottom:0.3rem;">
+                ¿Quieres que te haga el precálculo completo de Modalidad 40?
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
     else:
 
-        st.caption(
-            "El resultado es una estimación preliminar. "
-            "El cálculo financiero completo se generará "
-            "con el motor de simulación."
+        razon = precal.get("razon", "No fue posible precalificar con los datos disponibles.")
+
+        st.markdown(
+            f"""
+            <div class="banner-precal no">
+                <div class="icono">⚠️</div>
+                <div class="titulo-banner">Este escenario no precalifica</div>
+                <div class="subtexto">{razon}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+
+        if "semanas_faltantes" in precal:
+
+            st.caption(
+                "💡 Tip: retrasar tu edad de retiro o continuar cotizando "
+                "más tiempo puede ayudarte a cubrir las semanas faltantes."
+            )
 
 
 # ============================================================
@@ -853,6 +1192,15 @@ def registrar_uso_promo():
 def mostrar_acceso_reporte():
 
     if not st.session_state.resultado_extraccion:
+        return
+
+    precal = st.session_state.precalificacion
+
+    if not precal or not precal.get("califica"):
+        # No tiene sentido ofrecer el reporte completo de
+        # Modalidad 40 a alguien que no precalificó (Ley 97 o
+        # semanas insuficientes): el banner rojo en
+        # mostrar_resultado() ya le explica por qué.
         return
 
     st.divider()
@@ -1442,7 +1790,7 @@ def main():
     st.divider()
 
     if st.button(
-        "🚀 Calcular mi potencial de pensión",
+        "🔍 Ver mi precalificación",
         type="primary",
         key="btn_calcular",
     ):
