@@ -369,6 +369,19 @@ def _bloque_modalidad_40(estilos, parametros: dict, m40: dict) -> list:
     elementos.append(tabla)
     elementos.append(Spacer(1, 6))
 
+    elementos.append(
+        Paragraph(
+            "Nota: la pensión mensual estimada de este reporte se "
+            "calcula con el SBC promedio histórico (últimas 250 "
+            "semanas ya cotizadas). El salario diario elegido para "
+            "Modalidad 40 determina la inversión y el retorno (ROI) "
+            "mostrados en esta sección, pero no sustituye el SBC "
+            "histórico en el cálculo de la pensión.",
+            estilos["nota"],
+        )
+    )
+    elementos.append(Spacer(1, 8))
+
     # --------------------------------------------------------
     # Tabla mensual (primeros 12 meses o los que existan)
     # --------------------------------------------------------
