@@ -25,7 +25,7 @@
 #
 # ============================================================
 
-from math import floor
+from math import floor, ceil
 from typing import Optional
 from datetime import datetime
 
@@ -1591,6 +1591,153 @@ def precalificar(
             resultado["pension"]["pension_final_mensual"],
         "pension_anual_estimada":
             resultado["pension"]["pension_final_anual"],
+    }
+
+
+# ============================================================
+# CÁLCULO INVERSO: PAGO MENSUAL DESEADO → SBC RESULTANTE
+# ============================================================
+
+def calcular_sbc_desde_pago_deseado(
+    pago_mensual_deseado: float,
+    uma: float,
+    anio_inicio: int = ANIO_ACTUAL
+) -> dict:
+    """
+    Cálculo inverso de calcular_costo_m40_mensual().
+
+    El usuario indica cuánto quiere pagar mensualmente en
+    Modalidad 40 DURANTE EL PRIMER AÑO de la estrategia, y esta
+    función deriva el salario diario (SBC) que resulta de ese
+    pago, respetando el tope legal de 25 UMA.
+
+    Fórmula directa:
+        costo_mensual = salario_diario × 30.4 × tasa
+
+    Fórmula inversa:
+        salario_diario = costo_mensual / (30.4 × tasa)
+
+    IMPORTANTE:
+    La tasa de Modalidad 40 sube cada año (ver
+    TASAS_MODALIDAD_40), así que un mismo SBC costará más en
+    2027 que en 2026. Este cálculo usa la tasa del año de
+    inicio para derivar el SBC; los meses de años posteriores
+    costarán progresivamente más en pesos, aunque el SBC se
+    mantenga fijo (igual que en calcular_inversion_m40).
+    """
+
+    if pago_mensual_deseado is None or pago_mensual_deseado <= 0:
+
+        raise ValueError(
+            "El pago mensual deseado debe ser mayor que cero."
+        )
+
+    tasa = TASAS_MODALIDAD_40.get(
+        anio_inicio,
+        TASAS_MODALIDAD_40[2030]
+    )
+
+    salario_diario_calculado = pago_mensual_deseado / (
+        30.4 * tasa
+    )
+
+    # Respetar el tope legal de 25 UMA, igual que
+    # calcular_salario_m40().
+    salario_resultante = calcular_salario_m40(
+        salario_diario_calculado,
+        uma
+    )
+
+    costo_mensual_real = calcular_costo_m40_mensual(
+        salario_resultante["sbc_aplicado"],
+        tasa
+    )
+
+    return {
+        "pago_mensual_deseado": redondear(pago_mensual_deseado),
+        "salario_diario_calculado": redondear(
+            salario_diario_calculado
+        ),
+        "salario_diario_aplicado":
+            salario_resultante["sbc_aplicado"],
+        "tope_aplicado":
+            salario_resultante.get("topado", False),
+        "costo_mensual_real": costo_mensual_real,
+        "anio_inicio": anio_inicio,
+        "tasa_usada": redondear(tasa * 100, 4),
+    }
+
+
+# ============================================================
+# SUGERENCIA DE MESES SEGÚN SEMANAS FALTANTES
+# ============================================================
+
+def sugerir_meses_modalidad_40(
+    semanas_actuales: float,
+    semanas_objetivo: float = SEMANAS_MINIMAS
+) -> dict:
+    """
+    Sugiere cuántos meses de Modalidad 40 se necesitarían para
+    alcanzar un objetivo de semanas cotizadas, partiendo de las
+    semanas ya acumuladas.
+
+    Esta es solo una SUGERENCIA de punto de partida: el usuario
+    puede ajustarla libremente, ya que Modalidad 40 no está
+    limitada a cubrir semanas faltantes — muchas personas la
+    usan exclusivamente para subir su SBC promedio, aunque ya
+    cumplan el mínimo de semanas.
+
+    El máximo legal de Modalidad 40 es de 58 meses acumulados
+    a lo largo de toda la vida laboral del asegurado.
+    """
+
+    MESES_MAXIMO_LEGAL = 58
+
+    semanas_faltantes = max(
+        0,
+        semanas_objetivo - semanas_actuales
+    )
+
+    if semanas_faltantes <= 0:
+
+        return {
+            "semanas_faltantes": 0,
+            "meses_sugeridos": 12,
+            "meses_maximo_legal": MESES_MAXIMO_LEGAL,
+            "nota": (
+                "Ya cumples el mínimo de semanas; esta es una "
+                "duración de referencia para subir tu SBC "
+                "promedio, no una necesidad de semanas."
+            ),
+        }
+
+    semanas_por_mes = 4.345  # promedio de semanas por mes
+
+    meses_necesarios = ceil(
+        semanas_faltantes / semanas_por_mes
+    )
+
+    meses_sugeridos = min(
+        meses_necesarios,
+        MESES_MAXIMO_LEGAL
+    )
+
+    return {
+        "semanas_faltantes": semanas_faltantes,
+        "meses_sugeridos": meses_sugeridos,
+        "meses_maximo_legal": MESES_MAXIMO_LEGAL,
+        "alcanza_con_maximo_legal":
+            meses_necesarios <= MESES_MAXIMO_LEGAL,
+        "nota": (
+            None
+            if meses_necesarios <= MESES_MAXIMO_LEGAL
+            else (
+                "Ni siquiera con los 58 meses máximos "
+                "permitidos por ley se cubrirían las semanas "
+                "faltantes. Revisa tu edad de retiro o "
+                "considera otras estrategias."
+            )
+        ),
     }
 
 
