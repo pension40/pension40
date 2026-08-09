@@ -27,6 +27,7 @@
 
 from math import floor
 from typing import Optional
+from datetime import datetime
 
 
 # ============================================================
@@ -1371,6 +1372,225 @@ def resumen_escenario(
             roi[
                 "meses"
             ],
+    }
+
+
+# ============================================================
+# PROYECCIÓN A FECHA DE RETIRO
+# ============================================================
+
+def proyectar_semanas_y_sbc_a_retiro(
+    fecha_nacimiento: datetime,
+    semanas_actuales: float,
+    sbc_promedio_actual: float,
+    edad_retiro_deseada: int,
+    fecha_referencia: Optional[datetime] = None
+) -> dict:
+    """
+    Proyecta cuántas semanas habrá acumulado el asegurado, y
+    el SBC promedio de las últimas 250 semanas, al llegar a la
+    edad de retiro que elija.
+
+    SUPUESTO DE PROYECCIÓN:
+    Se asume que el asegurado continúa cotizando de forma
+    ininterrumpida desde la fecha de referencia (hoy, o la
+    fecha de emisión del reporte) hasta la fecha de retiro,
+    al mismo SBC promedio ya calculado con su historial real.
+    Esto es una ESTIMACIÓN: no contempla periodos sin cotizar,
+    cambios de salario futuros, ni lagunas laborales.
+
+    Parámetros
+    ----------
+    fecha_nacimiento:
+        Fecha de nacimiento del asegurado (derivada del CURP
+        o extraída del documento).
+
+    semanas_actuales:
+        Semanas cotizadas ya acumuladas (extraídas del PDF o
+        capturadas manualmente).
+
+    sbc_promedio_actual:
+        SBC promedio de las últimas 250 semanas, según el
+        historial ya cotizado.
+
+    edad_retiro_deseada:
+        Edad a la que el asegurado planea pensionarse
+        (entre 60 y 65 años).
+
+    fecha_referencia:
+        Fecha desde la cual se proyecta hacia adelante (por
+        default, la fecha actual del sistema).
+
+    Retorna
+    -------
+    dict con:
+        fecha_nacimiento, edad_actual, fecha_retiro_estimada,
+        anios_para_retiro, semanas_adicionales_estimadas,
+        semanas_totales_estimadas, sbc_promedio_proyectado.
+    """
+
+    if fecha_nacimiento is None:
+
+        raise ValueError(
+            "Se requiere la fecha de nacimiento para "
+            "proyectar semanas a la fecha de retiro."
+        )
+
+    if edad_retiro_deseada < 60 or edad_retiro_deseada > 65:
+
+        raise ValueError(
+            "La edad de retiro debe estar entre 60 y 65 años."
+        )
+
+    ahora = fecha_referencia or datetime.now()
+
+    edad_actual = (
+        ahora.year - fecha_nacimiento.year
+        - (
+            (ahora.month, ahora.day)
+            < (fecha_nacimiento.month, fecha_nacimiento.day)
+        )
+    )
+
+    # --------------------------------------------------------
+    # Fecha estimada de retiro: cumpleaños número
+    # "edad_retiro_deseada" del asegurado.
+    # --------------------------------------------------------
+
+    try:
+
+        fecha_retiro_estimada = fecha_nacimiento.replace(
+            year=fecha_nacimiento.year + edad_retiro_deseada
+        )
+
+    except ValueError:
+
+        # 29 de febrero en año no bisiesto: usar 28 de febrero.
+        fecha_retiro_estimada = fecha_nacimiento.replace(
+            year=fecha_nacimiento.year + edad_retiro_deseada,
+            day=28
+        )
+
+    dias_para_retiro = (
+        fecha_retiro_estimada - ahora
+    ).days
+
+    if dias_para_retiro < 0:
+        dias_para_retiro = 0
+
+    anios_para_retiro = round(
+        dias_para_retiro / 365.25,
+        2
+    )
+
+    semanas_adicionales_estimadas = floor(
+        dias_para_retiro / 7
+    )
+
+    semanas_totales_estimadas = (
+        semanas_actuales + semanas_adicionales_estimadas
+    )
+
+    return {
+        "fecha_nacimiento": fecha_nacimiento,
+        "edad_actual": edad_actual,
+        "edad_retiro_deseada": edad_retiro_deseada,
+        "fecha_retiro_estimada": fecha_retiro_estimada,
+        "anios_para_retiro": anios_para_retiro,
+        "semanas_actuales": semanas_actuales,
+        "semanas_adicionales_estimadas":
+            semanas_adicionales_estimadas,
+        "semanas_totales_estimadas":
+            semanas_totales_estimadas,
+        # El SBC promedio de las últimas 250 semanas al momento
+        # del retiro, bajo el supuesto de continuidad, es el
+        # mismo SBC actual (se sigue cotizando igual).
+        "sbc_promedio_proyectado": sbc_promedio_actual,
+    }
+
+
+# ============================================================
+# PRECALIFICACIÓN RÁPIDA (TEASER)
+# ============================================================
+
+def precalificar(
+    ley_73: bool,
+    semanas_totales_estimadas: float,
+    sbc_promedio: float,
+    edad_retiro_deseada: int,
+    uma: float,
+    tipo_asignacion: str = "ninguna"
+) -> dict:
+    """
+    Calcula un precálculo rápido y superficial de pensión,
+    pensado para mostrarse como "teaser" apenas se procesa el
+    PDF, antes de que el usuario pague o desbloquee el reporte
+    completo.
+
+    Usa el mismo motor de calculo_escenario, pero se expone
+    aparte con un nombre explícito para dejar claro en app.py
+    que este resultado es una PRECALIFICACIÓN, no el cálculo
+    final (que además debe incluir la estrategia de
+    Modalidad 40 completa).
+    """
+
+    if not ley_73:
+
+        return {
+            "califica": False,
+            "razon": (
+                "El asegurado corresponde al régimen de "
+                "Ley 97, no a Ley 73. Este simulador aplica "
+                "únicamente para Ley 73."
+            ),
+        }
+
+    try:
+
+        validar_semanas(
+            semanas_totales_estimadas
+        )
+
+    except SemanasInvalidasError:
+
+        faltantes = max(
+            0,
+            SEMANAS_MINIMAS - semanas_totales_estimadas
+        )
+
+        return {
+            "califica": False,
+            "razon": (
+                "A la edad de retiro elegida no se alcanzarían "
+                "las semanas mínimas requeridas. Le faltarían "
+                f"aproximadamente {faltantes:.0f} semanas."
+            ),
+            "semanas_faltantes": faltantes,
+        }
+
+    try:
+
+        resultado = calcular_escenario(
+            sbc_promedio=sbc_promedio,
+            semanas=semanas_totales_estimadas,
+            edad=edad_retiro_deseada,
+            uma=uma,
+            tipo_asignacion=tipo_asignacion,
+        )
+
+    except CalculadorPensionError as error:
+
+        return {
+            "califica": False,
+            "razon": str(error),
+        }
+
+    return {
+        "califica": True,
+        "pension_mensual_estimada":
+            resultado["pension"]["pension_final_mensual"],
+        "pension_anual_estimada":
+            resultado["pension"]["pension_final_anual"],
     }
 
 
