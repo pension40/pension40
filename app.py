@@ -304,226 +304,73 @@ def validar_datos():
 # ============================================================
 
 def procesar_informacion():
-
     errores = validar_datos()
-
     if errores:
-
         for error in errores:
             st.error(error)
-
         return
-
+        
     if not EXTRACTOR_DISPONIBLE:
-
-        st.error(
-            "El módulo extractor.py todavía no está "
-            "disponible correctamente."
-        )
-
+        st.error("El módulo extractor.py todavía no está disponible correctamente.")
         return
-
-    with st.spinner(
-        "Analizando tu información del IMSS..."
-    ):
-
+        
+    with st.spinner("Analizando tu información del IMSS y registrando prospecto..."):
         try:
-
-            resultado = analizar_pdf_streamlit(
-                st.session_state.pdf
-            )
-
+            # 1. Ejecutar extracción del PDF
+            resultado = analizar_pdf_streamlit(st.session_state.pdf)
             st.session_state.resultado_extraccion = resultado
-
+            
+            # 2. Sanitizar datos para la base de datos (Supabase espera tipos estrictos)
+            semanas_raw = resultado.get("semanas_cotizadas", 0)
+            semanas_int = int(float(semanas_raw)) if semanas_raw else 0
+            
+            sbc_raw = resultado.get("sbc_promedio", 0.0)
+            sbc_float = float(sbc_raw) if sbc_raw else 0.0
+            
+            # Extraer NSS del diccionario o lista si viene múltiple
+            nss_data = resultado.get("nss", None)
+            nss_str = nss_data[0] if isinstance(nss_data, list) else str(nss_data)
+            
+            # Importar la función desde base_datos.py de forma local si es necesario
+            from base_datos import guardar_prospecto
+            
+            # 3. Guardar el prospecto en Supabase de forma automática
+            prospecto_guardado = guardar_prospecto(
+                nombre=st.session_state.datos_cliente.get("nombre", "Usuario Web"),
+                correo=st.session_state.datos_cliente.get("correo", ""),
+                telefono=st.session_state.datos_cliente.get("telefono", ""),
+                nss=nss_str,
+                semanas_cotizadas=semanas_int,
+                sbc_promedio=sbc_float,
+                fecha_nacimiento=None, # Se actualizará en la etapa de simulación
+                estatus_pago=st.session_state.pago_confirmado,
+                codigo_promocional=st.session_state.codigo_promo if st.session_state.promo_validada else None
+            )
+            
+            # 4. Almacenar el ID generado por Supabase para futuras actualizaciones o descargas
+            if prospecto_guardado and "id" in prospecto_guardado:
+                st.session_state.prospecto_id = prospecto_guardado["id"]
+                
         except Ley97Error as error:
-
             st.session_state.resultado_extraccion = None
-
-            st.error(
-                "❌ Este documento corresponde al régimen "
-                "de Ley 97 del IMSS."
-            )
-
+            st.error("❌ Este documento corresponde al régimen de Ley 97 del IMSS.")
             st.warning(str(error))
-
             return
-
         except SemanasInsuficientesError as error:
-
             st.session_state.resultado_extraccion = None
-
             st.warning(str(error))
-
             return
-
         except ExtractorPensionError as error:
-
             st.session_state.resultado_extraccion = None
-
-            st.error(
-                f"No fue posible analizar el documento: {error}"
-            )
-
+            st.error(f"No fue posible analizar el documento: {error}")
             return
-
         except Exception as error:
-
             st.session_state.resultado_extraccion = None
-
-            st.error(
-                "Ocurrió un error al procesar el PDF."
-            )
-
+            st.error("Ocurrió un error al procesar el PDF o guardar en la base de datos.")
             st.exception(error)
-
             return
-
-    st.success(
-        "✅ Tu documento fue analizado correctamente."
-    )
-
-    resultado = st.session_state.resultado_extraccion
-
-    if not resultado:
-        return
-
-    # ========================================================
-    # MOSTRAR RESULTADOS
-    # ========================================================
-
-    st.subheader("Resultado preliminar")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        semanas = resultado.get(
-            "semanas_cotizadas",
-            "No disponible",
-        )
-
-        st.metric(
-            "Semanas cotizadas",
-            semanas,
-        )
-
-    with col2:
-
-        sbc = resultado.get(
-            "sbc_promedio",
-            None,
-        )
-
-        if sbc is not None:
-
-            st.metric(
-                "SBC promedio",
-                f"${float(sbc):,.2f}",
-            )
-
-        else:
-
-            st.metric(
-                "SBC promedio",
-                "No disponible",
-            )
-
-    # ========================================================
-    # PRIMERA COTIZACIÓN
-    # ========================================================
-
-    fecha = resultado.get(
-        "primera_fecha_cotizacion"
-    )
-
-    if fecha:
-
-        if hasattr(fecha, "strftime"):
-
-            fecha_texto = fecha.strftime(
-                "%d/%m/%Y"
-            )
-
-        else:
-
-            fecha_texto = str(fecha)
-
-        st.write(
-            f"**Primera cotización:** {fecha_texto}"
-        )
-
-    # ========================================================
-    # RÉGIMEN
-    # ========================================================
-
-    ley = resultado.get(
-        "ley",
-        "Ley 73",
-    )
-
-    if ley == "Ley 97":
-
-        st.error(
-            "Este documento corresponde a Ley 97."
-        )
-
-        return
-
-    st.success(
-        "✅ El documento cumple con el criterio "
-        "de Ley 73."
-    )
-
-    # ========================================================
-    # SEMANAS
-    # ========================================================
-
-    validacion = resultado.get(
-        "validacion_semanas",
-        {},
-    )
-
-    if validacion:
-
-        mensaje = validacion.get(
-            "mensaje",
-            "",
-        )
-
-        if mensaje:
-            st.info(mensaje)
-
-    # ========================================================
-    # ÚLTIMAS 250 SEMANAS
-    # ========================================================
-
-    ultimas = resultado.get(
-        "ultimas_250_semanas",
-        {},
-    )
-
-    dias = ultimas.get(
-        "dias_acumulados",
-        0,
-    )
-
-    st.write(
-        f"**Días utilizados para el promedio:** "
-        f"{dias:,} de 1,750"
-    )
-
-    if not ultimas.get(
-        "completo",
-        False,
-    ):
-
-        st.warning(
-            "No se pudieron identificar 1,750 días "
-            "completos en el historial detectado. "
-            "El resultado deberá revisarse antes "
-            "de utilizarlo para una simulación."
-        )
-
+            
+    st.success("✅ Tu documento fue analizado y registrado correctamente.")
 
 # ============================================================
 # RESULTADO
