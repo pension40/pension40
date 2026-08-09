@@ -1,1 +1,8 @@
 
+streamlit
+pdfplumber
+pandas
+supabase
+python-dotenv
+reportlab
+resend
