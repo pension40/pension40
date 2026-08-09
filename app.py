@@ -1,6 +1,6 @@
 # ============================================================
 # PENSION 40
-# app.py - Aplicación Principal Corregida (Bloque 1 de 3)
+# app.py - CÓDIGO COMPLETO Y CORREGIDO (Bloque 1 de 3)
 # ============================================================
 
 import streamlit as st
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# MÓDULOS DEL PROYECTO
+# MÓDULOS DE CONEXIÓN CON LA BASE DE DATOS
 from base_datos import (
     validar_codigo_promocional,
     registrar_uso_promocion,
@@ -30,37 +30,71 @@ from base_datos import (
     obtener_promociones,
 )
 
+# MOTOR MATEMÁTICO FINANCIERO
 from calculador import calcular_escenario, resumen_escenario
 
+# COMPONENTE GENERADOR DE REPORTE EJECUTIVO PDF
 try:
-    from extractor import analizar_pdf_streamlit, Ley97Error, SemanasInsuficientesError, ExtractorPensionError
+    from reporte_pdf import generar_reporte_pdf
+    PDF_DISPONIBLE = True
+except ImportError:
+    PDF_DISPONIBLE = False
+
+# EXTRACTOR AUTOMATIZADO DE EXPIEDIENTES IMSS
+try:
+    from extractor import (
+        analizar_pdf_streamlit,
+        Ley97Error,
+        SemanasInsuficientesError,
+        ExtractorPensionError,
+    )
     EXTRACTOR_DISPONIBLE = True
 except ImportError:
     EXTRACTOR_DISPONIBLE = False
 
+# INYECCIÓN CENTRALIZADA DE ESTILOS Y LOGO CORPORATIVO
 from estilos import inyectar_estilos, mostrar_encabezado, mostrar_pie_de_pagina
 
-# INYECTAR ESTILOS INMEDIATAMENTE DESPUÉS DE LAS IMPORTACIONES
+# INYECTAR HOJA DE ESTILOS INMEDIATAMENTE
 inyectar_estilos()
 
 PRECIO_REPORTE_DEFAULT = 249
 
-# INITIALIZE SESSION STATE SI NO EXISTE
+# ============================================================
+# INICIALIZACIÓN ROBUSTA DEL ESTADO DE SESIÓN
+# ============================================================
 valores_iniciales = {
-    "admin_autenticado": False, "pdf": None, "datos_cliente": {}, "resultado_extraccion": None,
-    "resultado_calculo": None, "promo_validada": False, "codigo_promo": "", "pago_confirmado": False,
-    "reporte_generado": False, "prospecto_id": None, "promo_uso_registrado": False,
-    "edad_retiro": 60, "tipo_asignacion": "ninguna", "meses_m40": 58, "pdf_reporte_bytes": None,
-    "tiene_hijos": False, "proyeccion": None, "precalificacion": None, "modo_captura": "pdf",
-    "datos_manuales_validos": False, "pago_mensual_m40": 5000.0, "salario_modalidad_40": None
+    "admin_autenticado": False,
+    "pdf": None,
+    "datos_cliente": {},
+    "resultado_extraccion": None,
+    "resultado_calculo": None,
+    "promo_validada": False,
+    "codigo_promo": "",
+    "pago_confirmado": False,
+    "reporte_generado": False,
+    "prospecto_id": None,
+    "promo_uso_registrado": False,
+    "edad_retiro": 60,
+    "tipo_asignacion": "ninguna",
+    "meses_m40": 58,
+    "pdf_reporte_bytes": None,
+    "tiene_hijos": False,
+    "proyeccion": None,
+    "precalificacion": None,
+    "modo_captura": "pdf",
+    "datos_manuales_validos": False,
+    "pago_mensual_m40": 5000.0,
+    "salario_modalidad_40": None,
 }
 
 for clave, valor in valores_iniciales.items():
     if clave not in st.session_state:
         st.session_state[clave] = valor
 
+
 # ============================================================
-# COMPONENTES DE ENTRADA Y FORMULARIOS
+# FORMULARIOS VISUALES DE CAPTURA
 # ============================================================
 def mostrar_presentacion():
     st.markdown(
@@ -101,12 +135,7 @@ def cargar_pdf():
         st.success(f"✓ Documento listo para análisis: {archivo.name}")
 # ============================================================
 # PENSION 40
-# app.py - Aplicación Principal Corregida (Bloque 2 de 3)
-# ============================================================
-
-# ============================================================
-# PENSION 40
-# app.py - Aplicación Principal Corregida (Bloque 2 de 3)
+# app.py - CÓDIGO COMPLETO Y CORREGIDO (Bloque 2 de 3)
 # ============================================================
 
 def validar_datos():
@@ -118,10 +147,22 @@ def validar_datos():
     if st.session_state.pdf is None: errores.append("Es necesario subir tu archivo PDF de Semanas Cotizadas.")
     return errores
 
+def BlackBox_calcular_sbc_ponderado(sbc_actual, sbc_m40, meses_m40):
+    """Calcula de forma exacta el peso ponderado del salario según los meses invertidos."""
+    if meses_m40 >= 58:
+        return sbc_m40
+    dias_m40 = meses_m40 * 30.4
+    dias_restantes = max(0.0, 1750.0 - dias_m40)
+    return ((sbc_actual * dias_restantes) + (sbc_m40 * dias_m40)) / 1750.0
+
 def procesar_informacion():
     errores = validar_datos()
     if errores:
         for err in errores: st.error(err)
+        return
+        
+    if not EXTRACTOR_DISPONIBLE:
+        st.error("El módulo extractor.py todavía no está disponible.")
         return
         
     with st.spinner("Procesando historial y auditando derechos Ley 73..."):
@@ -129,11 +170,10 @@ def procesar_informacion():
             resultado = analizar_pdf_streamlit(st.session_state.pdf)
             st.session_state.resultado_extraccion = resultado
             
-            # Sanitizar tipos de datos para evitar errores de persistencia en Supabase
             semanas_int = int(float(resultado.get("semanas_cotizadas", 0)))
             sbc_float = float(resultado.get("sbc_promedio", 0.0))
             nss_data = resultado.get("nss", "")
-            nss_str = nss_data if isinstance(nss_data, list) else str(nss_data)
+            nss_str = nss_data[0] if isinstance(nss_data, list) and nss_data else str(nss_data)
             
             from base_datos import guardar_prospecto
             prospecto_guardado = guardar_prospecto(
@@ -147,8 +187,10 @@ def procesar_informacion():
                 
             st.success("✅ Documento auditado con éxito. Revisa el análisis en la sección inferior.")
         except Ley97Error as e:
+            st.session_state.resultado_extraccion = None
             st.error(f"⚠️ Restricción de Régimen: {e}")
         except Exception as e:
+            st.session_state.resultado_extraccion = None
             st.error(f"Error al analizar el archivo: {e}")
 
 def mostrar_resultado():
@@ -167,11 +209,11 @@ def mostrar_resultado():
             <div class="etiqueta">Régimen Validado</div>
         </div>
         <div class="metric-box">
-            <div class="valor">{{int(float(res.get('semanas_cotizadas', 0)))}}</div>
+            <div class="valor">{int(float(res.get('semanas_cotizadas', 0)))}</div>
             <div class="etiqueta">Semanas Totales</div>
         </div>
         <div class="metric-box">
-            <div class="valor">${{float(res.get('sbc_promedio', 0)):,.2f}}</div>
+            <div class="valor">${float(res.get('sbc_promedio', 0)):,.2f}</div>
             <div class="etiqueta">SBC Promedio Actual</div>
         </div>
     </div>
@@ -184,56 +226,53 @@ def mostrar_descarga_reporte():
     res_ext = st.session_state.resultado_extraccion
     semanas_actuales = float(res_ext.get("semanas_cotizadas", 0))
     sbc_actual = float(res_ext.get("sbc_promedio", 0))
+    nombre_prospecto = st.session_state.datos_cliente.get("nombre", "Asegurado")
+    nss_prospecto = str(res_ext.get("nss", "No cargado"))
     
     try: uma_val = obtener_uma()
     except Exception: uma_val = 117.31
 
-    # CONTROLES INTERACTIVOS DE NEGOCIACIÓN COMERCIAL
     st.markdown("<p style='font-size:0.95rem; font-weight:600;'>Ajusta los parámetros para simular tu plan de inversión:</p>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1: 
         meses_m40 = st.slider("Meses de aportación en M40:", 12, 58, 58, step=1)
     with c2: 
-        pago_mensual_m40 = st.slider("Monto mensual aproximado a aportar ($):", 3000, 12000, 5000, step=500)
+        pago_mensual_m40 = st.slider("Monto mensual aproximado a aportar ($):", 3000, 15000, 5000, step=500)
 
-    # CÁLCULOS CRUZADOS DE AMBOS ESCENARIOS
+    # ESCENARIO 1: RETIRO TRADICIONAL INERCIAL
     escenario_normal = calcular_escenario(
         sbc_promedio=sbc_actual, semanas=semanas_actuales, edad=60, uma=uma_val,
         tipo_asignacion="asistencia", salario_modalidad_40=sbc_actual, meses_modalidad_40=1, aplicar_fox=True
     )
     pension_normal = escenario_normal["pension"]["pension_final_mensual"]
 
-    # Derivamos el salario diario aproximado basado en el pago mensual elegido usando la tasa del año actual (14.438%)
-    tasa_2026 = 0.14438
-    salario_diario_propuesto = pago_mensual_m40 / (30.4 * tasa_2026)
+    # ESCENARIO 2: RETIRO ESTRATÉGICO CON APORTACIONES VOLUNTARIAS
+    tasa_vigente = 0.14438
+    salario_diario_propuesto = pago_mensual_m40 / (30.4 * tasa_vigente)
     
-    # Al aportar X meses, ganamos semanas adicionales (X meses * 4.345 semanas promedio por mes)
     semanas_ganadas = meses_m40 * 4.345
     semanas_totales_m40 = semanas_actuales + semanas_ganadas
 
-    escenario_m40 = calcular_escenario(
+    escenario_m40_base = calcular_escenario(
         sbc_promedio=sbc_actual, semanas=semanas_totales_m40, edad=60, uma=uma_val,
         tipo_asignacion="asistencia", salario_modalidad_40=salario_diario_propuesto, meses_modalidad_40=meses_m40, aplicar_fox=True
     )
+    salario_m40_aplicado = escenario_m40_base["modalidad_40"]["salario"]["sbc_aplicado"]
     
-    if meses_m40 >= 54:
-        sbc_ponderado = escenario_m40["modalidad_40"]["salario"]["sbc_aplicado"]
-    else:
-        porcentaje_reemplazo = (meses_m40 * 30.4) / 1750
-        sbc_ponderado = (sbc_actual * (1 - porcentaje_reemplazo)) + (escenario_m40["modalidad_40"]["salario"]["sbc_aplicado"] * porcentaje_reemplazo)
+    sbc_ponderado = BlackBox_calcular_sbc_ponderado(sbc_actual, salario_m40_aplicado, meses_m40)
         
-    escenario_m40_recalc = calcular_escenario(
+    escenario_m40_final = calcular_escenario(
         sbc_promedio=sbc_ponderado, semanas=semanas_totales_m40, edad=60, uma=uma_val,
         tipo_asignacion="asistencia", salario_modalidad_40=salario_diario_propuesto, meses_modalidad_40=meses_m40, aplicar_fox=True
     )
     
-    pension_m40 = escenario_m40_recalc["pension"]["pension_final_mensual"]
-    inversion_total_m40 = escenario_m40_recalc["modalidad_40"]["inversion"]["inversion_total"]
+    pension_m40 = escenario_m40_final["pension"]["pension_final_mensual"]
+    inversion_total_m40 = escenario_m40_final["modalidad_40"]["inversion"]["inversion_total"]
     ganancia_neta = max(0.0, pension_m40 - pension_normal)
     roi_meses = inversion_total_m40 / ganancia_neta if ganancia_neta > 0 else 0.0
 
-    # TABLA COMPARATIVA DIRECTA CON CORRECCIÓN DE LAYOUT RESPONSIVO
-    st.markdown("#### 🔄 Tabla Comparativa de Beneficios")
+    # TABLA COMPARATIVA CON CONTROL DE RENDIMIENTO TOTALMENTE ADAPTATIVO
+    st.markdown("#### 🔄 Tabla Comparativa de Beneficios Financieros")
     
     tabla_comparativa = pd.DataFrame({
         "Factor de Análisis": [
@@ -250,7 +289,7 @@ def mostrar_descarga_reporte():
             "$0.00 MXN",
             "$0.00 MXN",
             f"${pension_normal:,.2f} MXN",
-            "Base"
+            "Base de Medición"
         ],
         "Plan Optimizado Pensión 40": [
             f"{int(semanas_totales_m40)} semanas",
@@ -262,7 +301,6 @@ def mostrar_descarga_reporte():
         ]
     })
     
-    # RENDERIZADOR OPTIMIZADO: Elimina el colapso vertical y fuerza un ancho completo responsivo
     st.dataframe(
         tabla_comparativa,
         use_container_width=True,
@@ -274,63 +312,64 @@ def mostrar_descarga_reporte():
         }
     )
 
-    # TARJETA DE ACCIÓN COMERCIAL (ROI)
+    # SECCIÓN CONTINÚA EN EL BLOQUE 3...
+    # ============================================================
+    # PENSION 40
+    # app.py - CÓDIGO COMPLETO Y CORREGIDO (Bloque 3 de 3)
+    # ============================================================
+
+    # TARJETA EMPRESARIAL DE ROI
     st.markdown(f"""
     <div style="background-color: #E7F6ED; border-left: 5px solid #14804A; padding: 1rem; border-radius: 8px; margin-top: 1rem; margin-bottom: 1.5rem;">
         <h5 style='color: #14804A; margin-top:0; margin-bottom:0.2rem;'>💡 Dictamen Financiero de Viabilidad</h5>
-        Al invertir en este plan, tu pensión aumenta <b>${ganancia_neta:,.2f} MXN cada mes</b>. 
-        Recuperas toda tu inversión acumulada en tan solo <b>{roi_meses:.1f} meses</b> de haber iniciado tus cobros del IMSS.
+        Al ejecutar esta estrategia, tu pensión mensual se eleva un excedente de <b>${ganancia_neta:,.2f} MXN netos mensuales</b>. 
+        Recuperas tu capital total en un margen de <b>{roi_meses:.1f} meses</b> de cobros garantizados.
     </div>
     """, unsafe_allow_html=True)
-    # CONTINÚA EN EL BLOQUE 3...
-    # ============================================================
-    # PENSION 40
-    # app.py - Aplicación Principal Corregida (Bloque 3 de 3)
-    # ============================================================
-    
-    # GRÁFICA INTERACTIVA DEL FLUJO DE CAJA ACUMULADO
-    st.markdown("#### 📉 Curva de Crecimiento de la Inversión")
-    tabla_mes = escenario_m40_recalc["modalidad_40"]["inversion"]["tabla_mensual"]
+
+    # CURVA DE CRECIMIENTO DE LA INVERSIÓN MENSUAL
+    st.markdown("#### 📉 Curva del Flujo de Capital Invertido")
+    tabla_mes = escenario_m40_final["modalidad_40"]["inversion"]["tabla_mensual"]
     if tabla_mes:
         df_chart = pd.DataFrame(tabla_mes)
         df_chart.rename(columns={"mes": "Mes", "inversion_acumulada": "Inversión Acumulada ($)"}, inplace=True)
         st.line_chart(df_chart, x="Mes", y="Inversión Acumulada ($)", use_container_width=True)
 
-    # CONSTANCIA DIGITAL EJECUTIVA PARA DESCARGA
-    reporte_txt = f"""========================================================================
-                  PENSIÓN 40 - REPORTE EJECUTIVO DE RETIRO
-========================================================================
-EMISIÓN: {datetime.now().strftime('%d/%m/%Y')}
-CLIENTE: {st.session_state.datos_cliente.get('nombre', 'Asegurado')}
-------------------------------------------------------------------------
-1. ESCENARIO INERCIAL (SIN INVERSIÓN):
-- Semanas Cotizadas: {int(semanas_actuales)}
-- Salario Promedio Histórico: ${sbc_actual:,.2f} MXN
-- Pensión Mensual Estimada: ${pension_normal:,.2f} MXN
+    # COMPILADOR SEGURO DE ARCHIVOS PDF OFICIALES
+    if PDF_DISPONIBLE:
+        try:
+            # Diccionario empaquetado con datos cruzados de auditoría y simulador para ReportLab
+            payload_simulacion = {
+                "nombre": nombre_prospecto,
+                "nss": nss_prospecto,
+                "semanas_actuales": semanas_actuales,
+                "semanas_finales": semanas_totales_m40,
+                "sbc_actual": sbc_actual,
+                "sbc_final": sbc_ponderado,
+                "pension_actual": pension_normal,
+                "pension_final": pension_m40,
+                "inversion": inversion_total_m40,
+                "roi": roi_meses
+            }
+            
+            # Generar los bytes directos en memoria usando tu módulo de ReportLab
+            pdf_bytes = generar_reporte_pdf(nombre_prospecto, escenario_m40_final)
+            
+            st.write("---")
+            st.markdown("<h4 style='text-align: center;'>📋 Descarga de Dictamen Certificado</h4>", unsafe_allow_html=True)
+            st.download_button(
+                label="📥 Descargar Reporte Financiero Completo (PDF Ley 73)",
+                data=pdf_bytes,
+                file_name=f"Reporte_Financiero_M40_{nombre_prospecto.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key="btn_descarga_pdf_real_hd"
+            )
+        except Exception as err_pdf:
+            st.error(f"El motor matemático compiló correctamente, pero falló la generación del PDF: {err_pdf}")
+    else:
+        st.error("El módulo reporte_pdf.py no está disponible para descargas.")
 
-2. ESCENARIO OPTIMIZADO (CON PLAN PENSIÓN 40):
-- Duración de Aportaciones en M40: {meses_m40} Meses
-- Semanas Totales Alcanzadas: {int(semanas_totales_m40)}
-- Salario Promedio Ponderado Final: ${sbc_ponderado:,.2f} MXN
-- Inversión Total Acumulada en M40: ${inversion_total_m40:,.2f} MXN
-- MONTO DE PENSIÓN ESTIMADA FINAL: ${pension_m40:,.2f} MXN / mes
-
-3. ANÁLISIS DE RETORNO (ROI):
-- Ganancia Financiera Neta: +${ganancia_neta:,.2f} MXN adicionales mensuales
-- Tiempo de Recuperación de Inversión: {roi_meses:.1f} Meses
-========================================================================
-¿Tienes dudas sobre tu estrategia?
-Envía un correo directamente a: contacto.pension40@gmail.com
-========================================================================
-"""
-    st.download_button(
-        label="📥 Descargar esta Proyección Estratégica en mi Dispositivo", 
-        data=reporte_txt, 
-        file_name=f"Estrategia_M40_{st.session_state.datos_cliente.get('nombre', 'Asegurado').replace(' ', '_')}.txt",
-        mime="text/plain"
-    )
-    
-    # CTA DE ATENCIÓN DIRECTA AL FINAL DEL REPORTE
+    # LLAMADO A LA ACCIÓN AUTOMÁTICO DE ATENCIÓN AL CLIENTE
     st.markdown("""
     <div class="card" style="background-color: #F7F9FC; text-align: center; margin-top: 2rem; border: 1px dashed #1B6CA8;">
         <h4 style="color: #0B2545; margin-bottom: 0.3rem;">📬 ¿Tienes dudas o comentarios sobre tus escenarios?</h4>
@@ -338,33 +377,54 @@ Envía un correo directamente a: contacto.pension40@gmail.com
     </div>
     """, unsafe_allow_html=True)
 
+def registrar_uso_promo():
+    if not st.session_state.promo_validada or st.session_state.promo_uso_registrado:
+        return
+    codigo = st.session_state.codigo_promo
+    if codigo:
+        try:
+            registrar_uso_promocion(codigo)
+            st.session_state.promo_uso_registrado = True
+        except Exception:
+            pass
+
 def mostrar_acceso_reporte():
     if not st.session_state.resultado_extraccion: 
         return
         
-    # FILTRO CONTROLADOR: Si la promoción es válida o ya pagó, abre el reporte
+    st.divider()
+    st.markdown("<h3 style='text-align: center;'>🔒 Desbloqueo de Reporte Avanzado</h3>", unsafe_allow_html=True)
+    
+    # CANDADO DE SEGURIDAD ESTRICTO: Solo abre si pagó o metió cupón válido
     if st.session_state.promo_validada or st.session_state.pago_confirmado:
-        mostrar_descarga_reporte() # Abre las tablas, el slider y la descarga
+        mostrar_descarga_reporte()
         return
         
-    # Si NO ha pagado ni validado cupón, se detiene aquí y solo muestra el cobro
-    try:
-        precio = obtener_precio_reporte()
-    except Exception:
-        precio = PRECIO_REPORTE_DEFAULT
-    ...
+    try: precio = obtener_precio_reporte()
+    except Exception: precio = PRECIO_REPORTE_DEFAULT
         
-    # Si no tiene código de descuento, mostramos la opción de compra normal
-    mostrar_descarga_reporte()
+    st.markdown(f"""
+    <div class="card-azul" style="text-align: center; margin-bottom: 1rem;">
+        <div class="precio">${precio:,.0f} MXN</div>
+        <div class="precio-detalle" style="font-weight:600;">Reporte Avanzado de Simulación Ponderada</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("El acceso avanzado desbloqueará el análisis cruzado de incremento de cuantías, gráficas de rendimiento y descargas en formato PDF corporativo.")
+    
+    if st.button(f"💳 Obtener reporte por ${precio:,.0f} MXN", type="primary", key="btn_pago"):
+        st.info("La pasarela de pago segura de Stripe/PayPal se conectará en la siguiente etapa.")
 
 def validar_promocion():
+    if st.session_state.promo_validada:
+        return
     st.markdown('<div class="paso-badge">PASO 4</div>', unsafe_allow_html=True)
-    st.subheader("Códigos Promocionales o Cupones")
-    codigo = st.text_input("Ingresa tu código de cortesía si cuentas con uno:", placeholder="P40-PRUEBA").strip().upper()
-    if st.button("Validar y Desbloquear Reporte Financiero"):
+    st.subheader("Cupones o Códigos de Descuento")
+    codigo = st.text_input("Ingresa tu código de cortesía corporativo:", placeholder="Ej: P40-PRUEBA").strip().upper()
+    if st.button("Validar y Desbloquear Plataforma"):
         if codigo == "P40-PRUEBA":
             st.session_state.promo_validada = True
-            st.success("🎉 Código de prueba validado con éxito. Se ha activado la simulación completa.")
+            st.success("🎉 Código promocional de prueba validado. Simulación completa liberada.")
             st.rerun()
         elif codigo:
             try:
@@ -372,12 +432,12 @@ def validar_promocion():
                 if res.get("valido"):
                     st.session_state.promo_validada = True
                     st.session_state.codigo_promo = codigo
-                    st.success("🎉 Cupón corporativo validado.")
+                    st.success("🎉 Código promocional validado.")
                     st.rerun()
                 else:
-                    st.error("El cupón ingresado expiró o es inválido.")
+                    st.error("El cupón ingresado expiró o no cuenta con usos disponibles.")
             except Exception:
-                st.error("No se pudo conectar al servidor para validar el cupón.")
+                st.error("Error al validar el código promocional en el servidor.")
 
 def main():
     mostrar_encabezado()
@@ -386,7 +446,7 @@ def main():
     cargar_pdf()
     
     st.write("")
-    if st.button("🚀 Iniciar Auditoría y Calcular Mi Pensión", type="primary"):
+    if st.button("🚀 Iniciar Auditoría y Calcular Mi Pensión", type="primary", key="btn_calcular"):
         procesar_informacion()
         
     mostrar_resultado()
