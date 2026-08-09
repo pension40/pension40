@@ -71,18 +71,17 @@ def _construir_estilos():
 # PENSION 40
 # Módulo: reporte_pdf.py - Bloque 2 de 2
 # ============================================================
-
 # ============================================================
 # PENSION 40
-# Módulo: reporte_pdf.py - Bloque 2 de 2 (CORREGIDO)
+# Módulo: reporte_pdf.py - Bloque 2 de 2 (DESACOPLADO INTEGRAL)
 # ============================================================
 
-def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
+def generar_reporte_pdf(nombre_cliente: str, escenario_normal: dict, escenario_m40: dict) -> bytes:
     """
-    Construye el dictamen financiero oficial en PDF con la tabla comparativa
-    lado a lado que optimiza el cierre comercial con tu prospecto.
+    Construye el dictamen financiero oficial en PDF cruzando de forma exacta
+    el escenario inercial vs el escenario optimizado de inversión.
     """
-    if not resultado_calculo:
+    if not escenario_normal or not escenario_m40:
         raise ValueError("Faltan los parámetros de simulación matemática para compilar el PDF.")
 
     buffer = io.BytesIO()
@@ -104,50 +103,46 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
     story.append(Paragraph("Plan de Estrategia de Retiro Avanzado · Ley 1973 IMSS", estilos["subtitulo"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL_MEDIO, spaceAfter=12))
 
-    # 2. AUDITORÍA GENERAL DE EXPEDIENTE (LEAD DATA)
+    # 2. AUDITORÍA GENERAL DE EXPEDIENTE (DATOS REALES)
     fecha_actual = datetime.now().strftime("%d/%m/%Y")
-    params = resultado_calculo.get("parametros", {})
-    pension_base_data = resultado_calculo.get("pension", {})
-    m40_data = resultado_calculo.get("modalidad_40", {})
-    roi_data = resultado_calculo.get("roi", {})
-
-    # Extracción de valores cruzados desde el motor matemático
-    semanas_actuales = params.get("semanas", 0) - (m40_data.get("inversion", {}).get("meses", 0) * 4.345)
-    if semanas_actuales < 0 or params.get("salario_modalidad_40") == pension_base_data.get("sbc_promedio"):
-        semanas_actuales = params.get("semanas", 0)
-        
+    
+    # Desglose Escenario Normal (Inercial)
+    pension_base_data = escenario_normal.get("pension", {})
+    semanas_actuales = escenario_normal.get("parametros", {}).get("semanas", 0)
     sbc_actual = pension_base_data.get("sbc_promedio", 0.0)
     pension_normal_mensual = pension_base_data.get("pension_final_mensual", 0.0)
     
-    # Valores proyectados con la inversión activa
-    semanas_totales_m40 = params.get("semanas", 0)
-    pension_final_m40 = pension_base_data.get("pension_final_mensual", 0.0)
-    inversion_total_m40 = m40_data.get("inversion", {}).get("inversion_total", 0.0)
-    meses_m40 = m40_data.get("inversion", {}).get("meses", 0)
-    pago_mensual_estimado = inversion_total_m40 / meses_m40 if meses_m40 > 0 else 0.0
+    # Desglose Escenario Avanzado (Modalidad 40)
+    pension_m40_data = escenario_m40.get("pension", {})
+    m40_calc = escenario_m40.get("modalidad_40", {})
+    roi_calc = escenario_m40.get("roi", {})
     
-    # Ajuste de brecha comercial inercial si el cálculo se ejecuta simétrico
-    if pension_final_m40 == pension_normal_mensual and meses_m40 > 1:
-        sbc_ponderado_pdf = pension_base_data.get("sbc_promedio", 0.0)
-        pension_normal_mensual = pension_normal_mensual / 2.3  
-    else:
-        sbc_ponderado_pdf = pension_base_data.get("sbc_promedio", 0.0)
+    semanas_totales_m40 = escenario_m40.get("parametros", {}).get("semanas", 0)
+    sbc_ponderado_final = pension_m40_data.get("sbc_promedio", 0.0)
+    pension_final_m40 = pension_m40_data.get("pension_final_mensual", 0.0)
+    
+    inversion_total_m40 = m40_calc.get("inversion", {}).get("inversion_total", 0.0)
+    meses_m40 = m40_calc.get("inversion", {}).get("meses", 0)
+    
+    # Extracción segura de la cuota mensual simulada
+    tabla_mes = m40_calc.get("inversion", {}).get("tabla_mensual", [])
+    pago_mensual_estimado = tabla_mes[0].get("costo_mensual", 0.0) if tabla_mes else (inversion_total_m40 / meses_m40 if meses_m40 > 0 else 0.0)
 
     ganancia_neta_mensual = max(0.0, pension_final_m40 - pension_normal_mensual)
-    roi_meses_final = roi_data.get("meses", 0.0) if ganancia_neta_mensual > 0 else 0.0
+    roi_meses_final = inversion_total_m40 / ganancia_neta_mensual if ganancia_neta_mensual > 0 else 0.0
 
     datos_auditoria = [
         [Paragraph(f"<b>Asegurado:</b> {nombre_cliente}", estilos["cuerpo"]),
          Paragraph(f"<b>Fecha de emisión:</b> {fecha_actual}", estilos["cuerpo"])],
         [Paragraph(f"<b>Régimen Validado:</b> Ley 1973 del Seguro Social", estilos["cuerpo"]),
-         Paragraph(f"<b>Edad de Retiro Evaluada:</b> {params.get('edad')} años", estilos["cuerpo"])]
+         Paragraph(f"<b>Edad de Retiro Evaluada:</b> {escenario_normal.get('parametros', {}).get('edad')} años", estilos["cuerpo"])]
     ]
     tabla_auditoria = Table(datos_auditoria, colWidths=[9.5 * cm, 8.0 * cm])
     tabla_auditoria.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 4)]))
     story.append(tabla_auditoria)
     story.append(Spacer(1, 14))
 
-    # 3. TABLA COMPARATIVA FINANCIERA DE ALTO IMPACTO (SIDE-BY-SIDE)
+    # 3. TABLA COMPARATIVA FINANCIERA CORREGIDA
     story.append(Paragraph("🔄 Análisis Cruzado de Escenarios de Retiro", estilos["seccion"]))
     
     filas_comparativas = [
@@ -161,7 +156,7 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
         
         [Paragraph("Salario Diario Promedio (SBC)", estilos["tabla_texto"]), 
          Paragraph(f"${sbc_actual:,.2f} MXN", estilos["tabla_texto"]), 
-         Paragraph(f"${sbc_ponderado_pdf:,.2f} MXN", estilos["tabla_texto"])],
+         Paragraph(f"${sbc_ponderado_final:,.2f} MXN", estilos["tabla_texto"])],
         
         [Paragraph("Aportación Mensual Requerida", estilos["tabla_texto"]), 
          Paragraph("$0.00 MXN", estilos["tabla_texto"]), 
@@ -202,7 +197,7 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
         f"Al ejecutar esta estrategia financiera, tu pensión mensual experimenta un incremento neto de "
         f"<b>${ganancia_neta_mensual:,.2f} MXN adicionales cada mes</b> con respecto a la inercia de tus cotizaciones normales. "
         f"Bajo este rendimiento, recuperarás el 100% de tu capital financiero total invertido en un margen estimado de "
-        f"<b>{roi_meses_final:.1f} meses</b> de disfrute de tu pensión (Aprox. {resultado_calculo.get('roi', {}).get('anios', 1.5)} años)."
+        f"<b>{roi_meses_final:.1f} meses</b> de disfrute de tu pensión (Aprox. {roi_calc.get('anios', 1.5)} años)."
     )
     story.append(Paragraph(texto_roi, estilos["cuerpo"]))
     story.append(Spacer(1, 18))
@@ -223,7 +218,7 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
     )
     story.append(Paragraph(texto_aviso, estilos["footer"]))
 
-    # COMPILACIÓN DEL DOCUMENTO BINARIO
     documento.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
