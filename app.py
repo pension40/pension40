@@ -50,6 +50,8 @@ try:
         resumen_escenario,
         proyectar_semanas_y_sbc_a_retiro,
         precalificar,
+        calcular_sbc_desde_pago_deseado,
+        sugerir_meses_modalidad_40,
         CalculadorPensionError,
     )
     CALCULADOR_DISPONIBLE = True
@@ -57,6 +59,16 @@ try:
 except ImportError:
     CALCULADOR_DISPONIBLE = False
 
+
+# ============================================================
+# ESTILOS Y MARCA (separado del resto de la lógica)
+# ============================================================
+
+from estilos import (
+    inyectar_estilos,
+    mostrar_encabezado,
+    mostrar_pie_de_pagina,
+)
 
 # ============================================================
 # GENERADOR DE PDF
@@ -115,6 +127,8 @@ valores_iniciales = {
     "precalificacion": None,
     "modo_captura": "pdf",
     "datos_manuales_validos": False,
+    "pago_mensual_m40": 3000.0,
+    "salario_modalidad_40": None,
 }
 
 for clave, valor in valores_iniciales.items():
@@ -126,336 +140,14 @@ for clave, valor in valores_iniciales.items():
 # ============================================================
 # ESTILOS
 # ============================================================
-
-st.markdown(
-    """
-    <style>
-
-    :root {
-        --azul-oscuro: #0B2545;
-        --azul-principal: #134074;
-        --azul-medio: #1B6CA8;
-        --azul-claro: #EAF2FA;
-        --azul-hover: #0F5A8F;
-        --verde-ok: #14804A;
-        --verde-claro: #E7F6ED;
-        --rojo-alerta: #B3261E;
-        --rojo-claro: #FCEAEA;
-        --gris-texto: #3B3B3B;
-        --gris-suave: #6B7280;
-        --gris-borde: #E2E8F0;
-        --gris-fondo: #F7F9FC;
-    }
-
-    /* Contenedor general más angosto y compacto */
-    .main .block-container {
-        max-width: 720px;
-        padding-top: 1rem;
-        padding-bottom: 2.5rem;
-    }
-
-    /* Reduce espacios verticales por default de Streamlit */
-    div[data-testid="stVerticalBlock"] > div {
-        gap: 0.4rem;
-    }
-
-    h1, h2, h3 { margin-bottom: 0.3rem; }
-
-    /* ---------- ENCABEZADO COMPACTO ---------- */
-
-    .header-wrap {
-        text-align: center;
-        margin-bottom: 0.8rem;
-        padding-top: 0.2rem;
-    }
-
-    .titulo {
-        text-align: center;
-        font-size: 1.9rem;
-        font-weight: 800;
-        color: var(--azul-oscuro);
-        margin-bottom: 0.1rem;
-        letter-spacing: -0.5px;
-    }
-
-    .subtitulo {
-        text-align: center;
-        font-size: 0.9rem;
-        color: var(--gris-suave);
-        font-weight: 500;
-        margin-bottom: 0;
-    }
-
-    .linea-divisora {
-        height: 3px;
-        width: 60px;
-        background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
-        margin: 0.5rem auto 0.9rem auto;
-        border-radius: 4px;
-    }
-
-    /* ---------- TARJETAS COMPACTAS ---------- */
-
-    .card {
-        padding: 0.9rem 1.1rem;
-        border-radius: 10px;
-        border: 1px solid var(--gris-borde);
-        background: #FFFFFF;
-        box-shadow: 0 1px 4px rgba(11, 37, 69, 0.05);
-        margin-bottom: 0.7rem;
-    }
-
-    .card h3, .card h4 {
-        color: var(--azul-oscuro);
-        margin-top: 0;
-        font-size: 1rem;
-    }
-
-    .card-azul {
-        padding: 0.9rem 1.1rem;
-        border-radius: 10px;
-        background: var(--azul-claro);
-        border: 1px solid rgba(27, 108, 168, 0.2);
-        margin-bottom: 0.7rem;
-    }
-
-    .card-compacta {
-        padding: 0.6rem 0.9rem;
-        border-radius: 8px;
-        border: 1px solid var(--gris-borde);
-        background: var(--gris-fondo);
-        margin-bottom: 0.5rem;
-        font-size: 0.85rem;
-    }
-
-    /* ---------- PASO / SECCIÓN ---------- */
-
-    .paso-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background: var(--azul-oscuro);
-        color: white;
-        font-weight: 700;
-        font-size: 0.72rem;
-        padding: 0.2rem 0.7rem;
-        border-radius: 999px;
-        margin-bottom: 0.4rem;
-        letter-spacing: 0.02em;
-    }
-
-    /* ---------- MINI DASHBOARD DE MÉTRICAS ---------- */
-
-    .metric-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        margin: 0.5rem 0 0.6rem 0;
-    }
-
-    .metric-box {
-        background: #FFFFFF;
-        border: 1px solid var(--gris-borde);
-        border-radius: 10px;
-        padding: 0.6rem 0.4rem;
-        text-align: center;
-    }
-
-    .metric-box .valor {
-        font-size: 1.25rem;
-        font-weight: 800;
-        color: var(--azul-oscuro);
-        line-height: 1.15;
-    }
-
-    .metric-box .etiqueta {
-        font-size: 0.68rem;
-        color: var(--gris-suave);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
-        margin-top: 0.15rem;
-    }
-
-    /* ---------- PRECIO ---------- */
-
-    .precio {
-        text-align: center;
-        font-size: 1.9rem;
-        font-weight: 800;
-        color: var(--azul-oscuro);
-        margin-bottom: 0.1rem;
-    }
-
-    .precio-detalle {
-        text-align: center;
-        font-size: 0.82rem;
-        color: var(--gris-suave);
-        margin-bottom: 0.4rem;
-    }
-
-    .centrado { text-align: center; }
-
-    /* ---------- LISTA DE BENEFICIOS COMPACTA ---------- */
-
-    .beneficios {
-        list-style: none;
-        padding-left: 0;
-        margin: 0.4rem 0 0.1rem 0;
-        columns: 2;
-        column-gap: 1rem;
-    }
-
-    .beneficios li {
-        padding: 0.15rem 0;
-        color: var(--gris-texto);
-        font-size: 0.82rem;
-        break-inside: avoid;
-    }
-
-    .beneficios li::before {
-        content: "✓";
-        color: var(--verde-ok);
-        font-weight: 800;
-        margin-right: 0.4rem;
-    }
-
-    /* ---------- BOTONES ---------- */
-
-    .stButton > button {
-        width: 100%;
-        min-height: 2.6rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        border: none;
-        transition: transform 0.05s ease-in-out;
-    }
-
-    .stButton > button:hover { transform: translateY(-1px); }
-
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
-    }
-
-    div[data-testid="stDownloadButton"] > button {
-        width: 100%;
-        min-height: 2.8rem;
-        border-radius: 8px;
-        font-weight: 700;
-        background: linear-gradient(90deg, var(--verde-ok), #0F6B3C);
-        color: white;
-        border: none;
-    }
-
-    /* ---------- BANNER DE PRECALIFICACIÓN (TEASER) ---------- */
-
-    .banner-precal {
-        border-radius: 12px;
-        padding: 1rem 1.1rem;
-        margin: 0.6rem 0 0.8rem 0;
-        text-align: center;
-    }
-
-    .banner-precal.ok {
-        background: linear-gradient(135deg, var(--verde-claro), #F3FBF6);
-        border: 1.5px solid rgba(20, 128, 74, 0.35);
-    }
-
-    .banner-precal.no {
-        background: linear-gradient(135deg, var(--rojo-claro), #FDF4F4);
-        border: 1.5px solid rgba(179, 38, 30, 0.3);
-    }
-
-    .banner-precal .icono { font-size: 1.6rem; }
-
-    .banner-precal .titulo-banner {
-        font-weight: 800;
-        font-size: 1.05rem;
-        margin: 0.25rem 0 0.1rem 0;
-    }
-
-    .banner-precal.ok .titulo-banner { color: var(--verde-ok); }
-    .banner-precal.no .titulo-banner { color: var(--rojo-alerta); }
-
-    .banner-precal .subtexto {
-        font-size: 0.82rem;
-        color: var(--gris-texto);
-    }
-
-    .banner-precal .pension-grande {
-        font-size: 2rem;
-        font-weight: 800;
-        color: var(--azul-oscuro);
-        margin: 0.3rem 0;
-    }
-
-    /* ---------- BANNER DE DESBLOQUEO ---------- */
-
-    .banner-desbloqueado {
-        background: linear-gradient(90deg, #E6F4EA, #EFFAF2);
-        border: 1px solid rgba(30, 138, 76, 0.35);
-        border-radius: 12px;
-        padding: 0.9rem 1.1rem;
-        text-align: center;
-        margin-bottom: 0.7rem;
-    }
-
-    .banner-desbloqueado .icono { font-size: 1.5rem; }
-
-    .banner-desbloqueado .texto-principal {
-        font-weight: 800;
-        color: var(--verde-ok);
-        font-size: 1rem;
-        margin: 0.2rem 0 0.05rem 0;
-    }
-
-    /* ---------- TABS MÁS COMPACTAS ---------- */
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.3rem;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        height: 2.4rem;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-
-    /* ---------- FOOTER ---------- */
-
-    .footer {
-        text-align: center;
-        font-size: 0.72rem;
-        color: var(--gris-suave);
-        margin-top: 1.8rem;
-        line-height: 1.4;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# ENCABEZADO
+#
+# El CSS y el logo viven en estilos.py, separado de esta
+# lógica, para poder actualizarlos sin tocar app.py (ver
+# comentario al inicio de estilos.py).
 # ============================================================
 
-def mostrar_encabezado():
+inyectar_estilos()
 
-    st.markdown(
-        """
-        <div class="header-wrap">
-            <div class="titulo">📊 Pensión 40</div>
-            <div class="subtitulo">
-                Simulador financiero de pensión bajo Ley 73 del IMSS
-            </div>
-            <div class="linea-divisora"></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 # ============================================================
@@ -1054,6 +746,153 @@ def mostrar_resultado():
                 "💡 Tip: retrasar tu edad de retiro o continuar cotizando "
                 "más tiempo puede ayudarte a cubrir las semanas faltantes."
             )
+
+
+# ============================================================
+# PERSONALIZACIÓN DE MODALIDAD 40
+# ============================================================
+
+def personalizar_modalidad_40():
+
+    precal = st.session_state.precalificacion
+
+    if not precal or not precal.get("califica"):
+        return
+
+    resultado = st.session_state.resultado_extraccion
+    proyeccion = st.session_state.proyeccion
+
+    st.markdown(
+        '<div class="paso-badge">MODALIDAD 40</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("Personaliza tu estrategia")
+
+    st.caption(
+        "Modalidad 40 te permite cotizar voluntariamente a un "
+        "salario mayor al que tenías, para subir tu pensión. "
+        "Elige cuánto quieres pagar al mes; nosotros calculamos "
+        "el salario diario (SBC) que eso representa."
+    )
+
+    try:
+        uma_actual = obtener_uma()
+    except Exception:
+        uma_actual = 113.14
+
+    # --------------------------------------------------------
+    # Sugerencia automática de meses
+    # --------------------------------------------------------
+
+    semanas_actuales = float(resultado.get("semanas_cotizadas") or 0)
+
+    sugerencia = sugerir_meses_modalidad_40(
+        semanas_actuales=semanas_actuales,
+    )
+
+    col_pago, col_meses = st.columns(2)
+
+    with col_pago:
+
+        pago_deseado = st.number_input(
+            "¿Cuánto quieres pagar al mes? ($)",
+            min_value=100.0,
+            max_value=15000.0,
+            value=float(st.session_state.get("pago_mensual_m40", 3000.0)),
+            step=100.0,
+            key="pago_mensual_m40_input",
+            help="Pago mensual aproximado durante el primer año de la estrategia.",
+        )
+
+    with col_meses:
+
+        meses_m40 = st.number_input(
+            "Meses de Modalidad 40",
+            min_value=1,
+            max_value=58,
+            value=int(st.session_state.get("meses_m40") or sugerencia["meses_sugeridos"]),
+            step=1,
+            key="meses_m40_input",
+            help="Máximo legal: 58 meses acumulados en toda la vida laboral.",
+        )
+
+    if sugerencia.get("nota"):
+        st.caption(f"💡 {sugerencia['nota']}")
+
+    st.session_state.meses_m40 = int(meses_m40)
+    st.session_state.pago_mensual_m40 = float(pago_deseado)
+
+    # --------------------------------------------------------
+    # Cálculo inverso: pago deseado → SBC resultante
+    # --------------------------------------------------------
+
+    try:
+
+        sbc_resultado = calcular_sbc_desde_pago_deseado(
+            pago_mensual_deseado=pago_deseado,
+            uma=uma_actual,
+        )
+
+        st.session_state.salario_modalidad_40 = sbc_resultado["salario_diario_aplicado"]
+
+        if sbc_resultado.get("tope_aplicado"):
+
+            st.warning(
+                f"⚠️ Ese pago supera el tope legal de Modalidad 40 (25 UMA). "
+                f"Se ajustó automáticamente: pagarías "
+                f"${sbc_resultado['costo_mensual_real']:,.0f}/mes "
+                f"(SBC diario ${sbc_resultado['salario_diario_aplicado']:,.2f})."
+            )
+
+        else:
+
+            st.caption(
+                f"Esto equivale a un SBC diario de "
+                f"${sbc_resultado['salario_diario_aplicado']:,.2f} "
+                f"({sbc_resultado['salario_diario_aplicado'] / uma_actual:.1f} UMA)."
+            )
+
+    except ValueError as error:
+
+        st.error(str(error))
+        st.session_state.salario_modalidad_40 = None
+        return
+
+    # --------------------------------------------------------
+    # Recalcular el escenario completo con el SBC de M40 y los
+    # meses elegidos, para que el reporte final use estos
+    # valores personalizados en vez de los defaults.
+    # --------------------------------------------------------
+
+    if CALCULADOR_DISPONIBLE and proyeccion:
+
+        try:
+
+            st.session_state.resultado_calculo = calcular_escenario(
+                sbc_promedio=proyeccion["sbc_promedio_proyectado"],
+                semanas=proyeccion["semanas_totales_estimadas"],
+                edad=st.session_state.edad_retiro,
+                uma=uma_actual,
+                tipo_asignacion=st.session_state.tipo_asignacion,
+                salario_modalidad_40=st.session_state.salario_modalidad_40,
+                meses_modalidad_40=st.session_state.meses_m40,
+            )
+
+            # Invalidar un PDF ya generado con parámetros viejos,
+            # para que se regenere con la nueva personalización.
+            st.session_state.pdf_reporte_bytes = None
+
+        except CalculadorPensionError as error:
+
+            st.warning(f"No fue posible recalcular con estos parámetros: {error}")
+
+    st.caption(
+        "📌 Nota: la pensión mensual estimada se calcula con tu "
+        "SBC promedio histórico (últimas 250 semanas ya "
+        "cotizadas). El monto que elijas para Modalidad 40 "
+        "determina la inversión y el retorno (ROI), pero no "
+        "sustituye tu SBC histórico en este cálculo."
+    )
 
 
 # ============================================================
@@ -1800,6 +1639,8 @@ def main():
     mostrar_resultado()
 
     if st.session_state.resultado_extraccion:
+
+        personalizar_modalidad_40()
 
         validar_promocion()
 
