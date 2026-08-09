@@ -1,8 +1,8 @@
-
 streamlit
 pdfplumber
 pandas
 supabase
 python-dotenv
 reportlab
+pillow
 resend
