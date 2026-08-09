@@ -353,8 +353,7 @@ def mostrar_descarga_reporte():
             }
             
             # Generar los bytes directos en memoria usando tu módulo de ReportLab
-             pdf_bytes = generar_reporte_pdf(nombre_prospecto, escenario_normal, escenario_m40_final)
-            
+            pdf_bytes = generar_reporte_pdf(nombre_prospecto, escenario_normal, escenario_m40_final)
             st.write("---")
             st.markdown("<h4 style='text-align: center;'>📋 Descarga de Dictamen Certificado</h4>", unsafe_allow_html=True)
             st.download_button(
