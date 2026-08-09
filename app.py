@@ -524,7 +524,42 @@ def procesar_informacion():
 # ============================================================
 # ACCESO AL REPORTE
 # ============================================================
+def validar_promocion():
 
+    st.subheader("4. ¿Tienes un código promocional?")
+
+    st.write(
+        "Si recibiste un código promocional de Pensión 40, "
+        "puedes ingresarlo aquí."
+    )
+
+    codigo = st.text_input(
+        "Código promocional",
+        placeholder="Ejemplo: P40-FACEBOOK",
+        key="codigo_promocional"
+    )
+
+    if st.button(
+        "Validar código promocional",
+        key="btn_validar_promo"
+    ):
+
+        if not codigo.strip():
+
+            st.warning(
+                "Ingresa un código promocional."
+            )
+
+            return
+
+        st.session_state.codigo_promo = (
+            codigo.strip().upper()
+        )
+
+        st.info(
+            "La validación del código promocional "
+            "se conectará con Supabase."
+        )
 def mostrar_acceso_reporte():
 
     if not st.session_state.resultado_extraccion:
