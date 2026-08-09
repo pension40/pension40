@@ -356,56 +356,171 @@ def mostrar_resultado():
 # PROMOCIÓN
 # ============================================================
 
-def validar_promocion():
+def procesar_informacion():
 
-    st.subheader("4. ¿Tienes un código promocional?")
+    errores = validar_datos()
 
-    st.write(
-        "Si recibiste un código promocional de Pensión 40, "
-        "puedes ingresarlo aquí."
-    )
+    if errores:
 
-    codigo = st.text_input(
-        "Código promocional",
-        placeholder="Ejemplo: P40-FACEBOOK",
-        key="codigo_promocional"
-    )
+        for error in errores:
+            st.error(error)
 
-    if st.button(
-        "Validar código promocional",
-        key="btn_validar_promo"
+        return
+
+    with st.spinner(
+        "Analizando tu información del IMSS..."
     ):
 
-        if not codigo.strip():
+        try:
 
-            st.warning(
-                "Ingresa un código promocional."
+            resultado = analizar_pdf_streamlit(
+                st.session_state.pdf
+            )
+
+            st.session_state.resultado_extraccion = resultado
+
+        except Ley97Error as error:
+
+            st.session_state.resultado_extraccion = None
+
+            st.error(
+                "❌ Este documento corresponde al régimen "
+                "de Ley 97 del IMSS."
+            )
+
+            st.warning(str(error))
+
+            return
+
+        except SemanasInsuficientesError as error:
+
+            st.session_state.resultado_extraccion = None
+
+            st.warning(str(error))
+
+            return
+
+        except ExtractorPensionError as error:
+
+            st.session_state.resultado_extraccion = None
+
+            st.error(
+                f"No fue posible analizar el documento: {error}"
             )
 
             return
 
-        # ====================================================
-        # AQUÍ CONECTAREMOS:
-        #
-        # base_datos.validar_codigo_promocional(codigo)
-        #
-        # La función comprobará en Supabase:
-        #
-        # - Que exista
-        # - Que estatus = ACTIVO
-        # - Que esté vigente
-        # - Que no haya superado límite de usos
-        #
-        # ====================================================
+        except Exception as error:
 
-        st.session_state.codigo_promo = codigo.strip().upper()
+            st.session_state.resultado_extraccion = None
 
-        st.info(
-            "La validación real del código se realizará "
-            "contra Supabase."
+            st.error(
+                "Ocurrió un error inesperado al procesar "
+                "el PDF."
+            )
+
+            st.exception(error)
+
+            return
+
+    st.success(
+        "✅ Tu documento fue analizado correctamente."
+    )
+
+    resultado = st.session_state.resultado_extraccion
+
+    if resultado:
+
+        st.subheader("Resultado preliminar")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.metric(
+                "Semanas cotizadas",
+                resultado.get(
+                    "semanas_cotizadas",
+                    "No disponible"
+                )
+            )
+
+        with col2:
+
+            sbc = resultado.get(
+                "sbc_promedio"
+            )
+
+            if sbc is not None:
+
+                st.metric(
+                    "SBC promedio",
+                    f"${sbc:,.2f}"
+                )
+
+            else:
+
+                st.metric(
+                    "SBC promedio",
+                    "No disponible"
+                )
+
+        fecha = resultado.get(
+            "primera_fecha_cotizacion"
         )
 
+        if fecha:
 
+            st.write(
+                f"**Primera cotización:** "
+                f"{fecha.strftime('%d/%m/%Y')}"
+            )
+
+        st.success(
+            "✅ El documento cumple con el criterio "
+            "de Ley 73."
+        )
+
+        validacion = resultado.get(
+            "validacion_semanas",
+            {}
+        )
+
+        if validacion:
+
+            st.info(
+                validacion.get(
+                    "mensaje",
+                    ""
+                )
+            )
+
+        ultimas = resultado.get(
+            "ultimas_250_semanas",
+            {}
+        )
+
+        dias = ultimas.get(
+            "dias_acumulados",
+            0
+        )
+
+        st.write(
+            f"**Días utilizados para el promedio:** "
+            f"{dias:,} de 1,750"
+        )
+
+        if not ultimas.get(
+            "completo",
+            False
+        ):
+
+            st.warning(
+                "No se pudieron identificar "
+                "1,750 días completos en el historial "
+                "detectado. El resultado debe revisarse "
+                "antes de utilizarlo para una simulación."
+            )
 # ============================================================
 # ACCESO AL REPORTE
 # ============================================================
