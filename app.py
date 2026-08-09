@@ -104,6 +104,11 @@ def cargar_pdf():
 # app.py - Aplicación Principal Corregida (Bloque 2 de 3)
 # ============================================================
 
+# ============================================================
+# PENSION 40
+# app.py - Aplicación Principal Corregida (Bloque 2 de 3)
+# ============================================================
+
 def validar_datos():
     errores = []
     datos = st.session_state.datos_cliente
@@ -128,7 +133,7 @@ def procesar_informacion():
             semanas_int = int(float(resultado.get("semanas_cotizadas", 0)))
             sbc_float = float(resultado.get("sbc_promedio", 0.0))
             nss_data = resultado.get("nss", "")
-            nss_str = nss_data[0] if isinstance(nss_data, list) else str(nss_data)
+            nss_str = nss_data if isinstance(nss_data, list) else str(nss_data)
             
             from base_datos import guardar_prospecto
             prospecto_guardado = guardar_prospecto(
@@ -192,14 +197,12 @@ def mostrar_descarga_reporte():
         pago_mensual_m40 = st.slider("Monto mensual aproximado a aportar ($):", 3000, 12000, 5000, step=500)
 
     # CÁLCULOS CRUZADOS DE AMBOS ESCENARIOS
-    # Escenario 1: Pensión Inercial Normal (Sin Modalidad 40)
     escenario_normal = calcular_escenario(
         sbc_promedio=sbc_actual, semanas=semanas_actuales, edad=60, uma=uma_val,
         tipo_asignacion="asistencia", salario_modalidad_40=sbc_actual, meses_modalidad_40=1, aplicar_fox=True
     )
     pension_normal = escenario_normal["pension"]["pension_final_mensual"]
 
-    # Escenario 2: Pensión Optimizada con la Inversión en Modalidad 40
     # Derivamos el salario diario aproximado basado en el pago mensual elegido usando la tasa del año actual (14.438%)
     tasa_2026 = 0.14438
     salario_diario_propuesto = pago_mensual_m40 / (30.4 * tasa_2026)
@@ -213,8 +216,6 @@ def mostrar_descarga_reporte():
         tipo_asignacion="asistencia", salario_modalidad_40=salario_diario_propuesto, meses_modalidad_40=meses_m40, aplicar_fox=True
     )
     
-    # Como el motor base toma el SBC histórico para la pensión, simulamos el reemplazo de semanas
-    # para reflejar comercialmente el beneficio real de Modalidad 40 en el promedio ponderado.
     if meses_m40 >= 54:
         sbc_ponderado = escenario_m40["modalidad_40"]["salario"]["sbc_aplicado"]
     else:
@@ -231,7 +232,7 @@ def mostrar_descarga_reporte():
     ganancia_neta = max(0.0, pension_m40 - pension_normal)
     roi_meses = inversion_total_m40 / ganancia_neta if ganancia_neta > 0 else 0.0
 
-    # TABLA COMPARATIVA DIRECTA DE ALTO IMPACTO COMERCIAL
+    # TABLA COMPARATIVA DIRECTA DE ALTO IMPACTO COMERCIAL (CORREGIDA)
     st.markdown("#### 🔄 Tabla Comparativa de Beneficios")
     
     tabla_comparativa = pd.DataFrame({
@@ -254,7 +255,7 @@ def mostrar_descarga_reporte():
         "Plan Optimizado Pensión 40": [
             f"{int(semanas_totales_m40)} semanas",
             f"${sbc_ponderado:,.2f} MXN",
-            f"${pension_mensual_m40:,.2f} MXN",
+            f"${pago_mensual_m40:,.2f} MXN",
             f"${inversion_total_m40:,.2f} MXN",
             f"${pension_m40:,.2f} MXN",
             f"+${ganancia_neta:,.2f} MXN / mes"
