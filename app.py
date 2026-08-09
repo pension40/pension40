@@ -339,10 +339,20 @@ Envía un correo directamente a: contacto.pension40@gmail.com
     """, unsafe_allow_html=True)
 
 def mostrar_acceso_reporte():
-    if not st.session_state.resultado_extraccion: return
-    if st.session_state.promo_validada:
-        mostrar_descarga_reporte()
+    if not st.session_state.resultado_extraccion: 
         return
+        
+    # FILTRO CONTROLADOR: Si la promoción es válida o ya pagó, abre el reporte
+    if st.session_state.promo_validada or st.session_state.pago_confirmado:
+        mostrar_descarga_reporte() # Abre las tablas, el slider y la descarga
+        return
+        
+    # Si NO ha pagado ni validado cupón, se detiene aquí y solo muestra el cobro
+    try:
+        precio = obtener_precio_reporte()
+    except Exception:
+        precio = PRECIO_REPORTE_DEFAULT
+    ...
         
     # Si no tiene código de descuento, mostramos la opción de compra normal
     mostrar_descarga_reporte()
