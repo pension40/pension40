@@ -1,27 +1,42 @@
-
 # ============================================================
 # PENSION 40
+# app.py
 # Aplicación principal Streamlit
-# ============================================================
-#
-# Este archivo controla ÚNICAMENTE:
-#
-# - Interfaz
-# - Captura de datos
-# - Carga del PDF
-# - Flujo de usuario
-# - Panel administrativo
-#
-# La lógica estará separada en:
-#
-# extractor.py
-# calculador.py
-# base_datos.py
-# correo.py
-#
 # ============================================================
 
 import streamlit as st
+
+# ============================================================
+# MÓDULOS DEL PROYECTO
+# ============================================================
+
+from base_datos import (
+    validar_codigo_promocional,
+    registrar_uso_promocion,
+    obtener_uma,
+    obtener_precio_reporte,
+    actualizar_uma,
+    verificar_password_admin,
+    crear_codigo_promocional,
+    cambiar_estatus_promocion,
+    obtener_promociones,
+)
+
+# ============================================================
+# EXTRACTOR
+# ============================================================
+
+try:
+    from extractor import (
+        analizar_pdf_streamlit,
+        Ley97Error,
+        SemanasInsuficientesError,
+        ExtractorPensionError,
+    )
+    EXTRACTOR_DISPONIBLE = True
+
+except ImportError:
+    EXTRACTOR_DISPONIBLE = False
 
 
 # ============================================================
@@ -32,7 +47,7 @@ st.set_page_config(
     page_title="Pensión 40",
     page_icon="📊",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -40,8 +55,8 @@ st.set_page_config(
 # VARIABLES GENERALES
 # ============================================================
 
-PRECIO_REPORTE = 249
 NOMBRE_APP = "Pensión 40"
+PRECIO_REPORTE_DEFAULT = 249
 
 
 # ============================================================
@@ -58,8 +73,9 @@ valores_iniciales = {
     "codigo_promo": "",
     "pago_confirmado": False,
     "reporte_generado": False,
+    "prospecto_id": None,
+    "promo_uso_registrado": False,
 }
-
 
 for clave, valor in valores_iniciales.items():
 
@@ -127,7 +143,7 @@ st.markdown(
 
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
@@ -139,7 +155,7 @@ def mostrar_encabezado():
 
     st.markdown(
         '<div class="titulo">Pensión 40</div>',
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     st.markdown(
@@ -148,7 +164,7 @@ def mostrar_encabezado():
         Simulador financiero de pensión bajo Ley 73 del IMSS
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -162,13 +178,13 @@ def mostrar_presentacion():
         """
         <div class="card">
 
-        ### 📊 Calcula el potencial de tu pensión
+        <h3>📊 Calcula el potencial de tu pensión</h3>
 
         Analizamos tu Constancia de Semanas Cotizadas del IMSS
         para determinar si perteneces al régimen de Ley 73 y
-        calcular tu escenario de pensión.
+        preparar tu escenario financiero.
 
-        <br>
+        <br><br>
 
         <strong>Necesitas:</strong>
 
@@ -181,7 +197,7 @@ def mostrar_presentacion():
 
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -196,25 +212,25 @@ def capturar_datos():
     nombre = st.text_input(
         "Nombre completo",
         placeholder="Nombre y apellidos",
-        key="nombre_cliente"
+        key="nombre_cliente",
     )
 
     correo = st.text_input(
         "Correo electrónico",
         placeholder="correo@ejemplo.com",
-        key="correo_cliente"
+        key="correo_cliente",
     )
 
     telefono = st.text_input(
         "WhatsApp",
         placeholder="10 dígitos",
-        key="telefono_cliente"
+        key="telefono_cliente",
     )
 
     st.session_state.datos_cliente = {
         "nombre": nombre.strip(),
         "correo": correo.strip(),
-        "telefono": telefono.strip()
+        "telefono": telefono.strip(),
     }
 
 
@@ -234,7 +250,7 @@ def cargar_pdf():
         "Seleccionar PDF",
         type=["pdf"],
         accept_multiple_files=False,
-        key="archivo_imss"
+        key="archivo_imss",
     )
 
     if archivo:
@@ -261,13 +277,19 @@ def validar_datos():
     datos = st.session_state.datos_cliente
 
     if not datos.get("nombre"):
-        errores.append("Ingresa tu nombre completo.")
+        errores.append(
+            "Ingresa tu nombre completo."
+        )
 
     if not datos.get("correo"):
-        errores.append("Ingresa tu correo electrónico.")
+        errores.append(
+            "Ingresa tu correo electrónico."
+        )
 
     if not datos.get("telefono"):
-        errores.append("Ingresa tu WhatsApp.")
+        errores.append(
+            "Ingresa tu WhatsApp."
+        )
 
     if st.session_state.pdf is None:
         errores.append(
@@ -292,78 +314,12 @@ def procesar_informacion():
 
         return
 
-    with st.spinner(
-        "Analizando tu información del IMSS..."
-    ):
+    if not EXTRACTOR_DISPONIBLE:
 
-        # ====================================================
-        # AQUÍ CONECTAREMOS:
-        #
-        # extractor.py
-        #
-        # resultado = analizar_pdf(
-        #     st.session_state.pdf
-        # )
-        #
-        # ====================================================
-
-        st.session_state.resultado_extraccion = {
-            "procesado": True
-        }
-
-    st.success(
-        "Tu documento fue recibido y está listo para análisis."
-    )
-
-    st.info(
-        "El motor de extracción se conectará con extractor.py."
-    )
-
-
-# ============================================================
-# RESULTADO INICIAL
-# ============================================================
-
-def mostrar_resultado():
-
-    if not st.session_state.resultado_extraccion:
-        return
-
-    st.divider()
-
-    st.subheader("3. Resultado de tu análisis")
-
-    st.markdown(
-        """
-        <div class="card">
-
-        ### 🎯 Análisis inicial
-
-        Tu información fue procesada correctamente.
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.info(
-        "Los datos reales de semanas, Ley 73 y SBC promedio "
-        "serán proporcionados por extractor.py."
-    )
-
-
-# ============================================================
-# PROMOCIÓN
-# ============================================================
-
-def procesar_informacion():
-
-    errores = validar_datos()
-
-    if errores:
-
-        for error in errores:
-            st.error(error)
+        st.error(
+            "El módulo extractor.py todavía no está "
+            "disponible correctamente."
+        )
 
         return
 
@@ -415,8 +371,7 @@ def procesar_informacion():
             st.session_state.resultado_extraccion = None
 
             st.error(
-                "Ocurrió un error inesperado al procesar "
-                "el PDF."
+                "Ocurrió un error al procesar el PDF."
             )
 
             st.exception(error)
@@ -429,101 +384,219 @@ def procesar_informacion():
 
     resultado = st.session_state.resultado_extraccion
 
-    if resultado:
+    if not resultado:
+        return
 
-        st.subheader("Resultado preliminar")
+    # ========================================================
+    # MOSTRAR RESULTADOS
+    # ========================================================
 
-        col1, col2 = st.columns(2)
+    st.subheader("Resultado preliminar")
 
-        with col1:
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        semanas = resultado.get(
+            "semanas_cotizadas",
+            "No disponible",
+        )
+
+        st.metric(
+            "Semanas cotizadas",
+            semanas,
+        )
+
+    with col2:
+
+        sbc = resultado.get(
+            "sbc_promedio",
+            None,
+        )
+
+        if sbc is not None:
 
             st.metric(
-                "Semanas cotizadas",
-                resultado.get(
-                    "semanas_cotizadas",
-                    "No disponible"
-                )
+                "SBC promedio",
+                f"${float(sbc):,.2f}",
             )
 
-        with col2:
+        else:
 
-            sbc = resultado.get(
-                "sbc_promedio"
+            st.metric(
+                "SBC promedio",
+                "No disponible",
             )
 
-            if sbc is not None:
+    # ========================================================
+    # PRIMERA COTIZACIÓN
+    # ========================================================
 
-                st.metric(
-                    "SBC promedio",
-                    f"${sbc:,.2f}"
-                )
+    fecha = resultado.get(
+        "primera_fecha_cotizacion"
+    )
 
-            else:
+    if fecha:
 
-                st.metric(
-                    "SBC promedio",
-                    "No disponible"
-                )
+        if hasattr(fecha, "strftime"):
 
-        fecha = resultado.get(
-            "primera_fecha_cotizacion"
-        )
-
-        if fecha:
-
-            st.write(
-                f"**Primera cotización:** "
-                f"{fecha.strftime('%d/%m/%Y')}"
+            fecha_texto = fecha.strftime(
+                "%d/%m/%Y"
             )
 
-        st.success(
-            "✅ El documento cumple con el criterio "
-            "de Ley 73."
-        )
+        else:
 
-        validacion = resultado.get(
-            "validacion_semanas",
-            {}
-        )
-
-        if validacion:
-
-            st.info(
-                validacion.get(
-                    "mensaje",
-                    ""
-                )
-            )
-
-        ultimas = resultado.get(
-            "ultimas_250_semanas",
-            {}
-        )
-
-        dias = ultimas.get(
-            "dias_acumulados",
-            0
-        )
+            fecha_texto = str(fecha)
 
         st.write(
-            f"**Días utilizados para el promedio:** "
-            f"{dias:,} de 1,750"
+            f"**Primera cotización:** {fecha_texto}"
         )
 
-        if not ultimas.get(
-            "completo",
-            False
-        ):
+    # ========================================================
+    # RÉGIMEN
+    # ========================================================
 
-            st.warning(
-                "No se pudieron identificar "
-                "1,750 días completos en el historial "
-                "detectado. El resultado debe revisarse "
-                "antes de utilizarlo para una simulación."
+    ley = resultado.get(
+        "ley",
+        "Ley 73",
+    )
+
+    if ley == "Ley 97":
+
+        st.error(
+            "Este documento corresponde a Ley 97."
+        )
+
+        return
+
+    st.success(
+        "✅ El documento cumple con el criterio "
+        "de Ley 73."
+    )
+
+    # ========================================================
+    # SEMANAS
+    # ========================================================
+
+    validacion = resultado.get(
+        "validacion_semanas",
+        {},
+    )
+
+    if validacion:
+
+        mensaje = validacion.get(
+            "mensaje",
+            "",
+        )
+
+        if mensaje:
+            st.info(mensaje)
+
+    # ========================================================
+    # ÚLTIMAS 250 SEMANAS
+    # ========================================================
+
+    ultimas = resultado.get(
+        "ultimas_250_semanas",
+        {},
+    )
+
+    dias = ultimas.get(
+        "dias_acumulados",
+        0,
+    )
+
+    st.write(
+        f"**Días utilizados para el promedio:** "
+        f"{dias:,} de 1,750"
+    )
+
+    if not ultimas.get(
+        "completo",
+        False,
+    ):
+
+        st.warning(
+            "No se pudieron identificar 1,750 días "
+            "completos en el historial detectado. "
+            "El resultado deberá revisarse antes "
+            "de utilizarlo para una simulación."
+        )
+
+
+# ============================================================
+# RESULTADO
+# ============================================================
+
+def mostrar_resultado():
+
+    if not st.session_state.resultado_extraccion:
+        return
+
+    st.divider()
+
+    st.subheader("3. Resultado de tu análisis")
+
+    resultado = st.session_state.resultado_extraccion
+
+    semanas = resultado.get(
+        "semanas_cotizadas",
+        "No disponible",
+    )
+
+    sbc = resultado.get(
+        "sbc_promedio",
+        None,
+    )
+
+    st.markdown(
+        """
+        <div class="card">
+
+        <h3>🎯 Tu análisis preliminar</h3>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.metric(
+            "Semanas cotizadas",
+            semanas,
+        )
+
+    with col2:
+
+        if sbc is not None:
+
+            st.metric(
+                "SBC promedio",
+                f"${float(sbc):,.2f}",
             )
+
+        else:
+
+            st.metric(
+                "SBC promedio",
+                "No disponible",
+            )
+
+    st.caption(
+        "El resultado es una estimación preliminar. "
+        "El cálculo financiero completo se generará "
+        "con el motor de simulación."
+    )
+
+
 # ============================================================
-# ACCESO AL REPORTE
+# PROMOCIÓN
 # ============================================================
+
 def validar_promocion():
 
     st.subheader("4. ¿Tienes un código promocional?")
@@ -535,13 +608,13 @@ def validar_promocion():
 
     codigo = st.text_input(
         "Código promocional",
-        placeholder="Ejemplo: P40-FACEBOOK",
-        key="codigo_promocional"
+        placeholder="Ejemplo: P40-PRUEBA",
+        key="codigo_promocional",
     )
 
     if st.button(
         "Validar código promocional",
-        key="btn_validar_promo"
+        key="btn_validar_promo",
     ):
 
         if not codigo.strip():
@@ -552,14 +625,103 @@ def validar_promocion():
 
             return
 
-        st.session_state.codigo_promo = (
-            codigo.strip().upper()
+        codigo = codigo.strip().upper()
+
+        with st.spinner(
+            "Validando código promocional..."
+        ):
+
+            try:
+
+                resultado = validar_codigo_promocional(
+                    codigo
+                )
+
+            except Exception as error:
+
+                st.error(
+                    "No fue posible comunicarse con "
+                    "la base de datos de Supabase."
+                )
+
+                st.exception(error)
+
+                return
+
+        if resultado.get("valido"):
+
+            st.session_state.codigo_promo = codigo
+
+            st.session_state.promo_validada = True
+
+            st.success(
+                "🎉 ¡Código promocional válido!"
+            )
+
+            st.info(
+                "Tu reporte financiero completo "
+                "ha sido desbloqueado."
+            )
+
+            st.rerun()
+
+        else:
+
+            st.session_state.codigo_promo = ""
+
+            st.session_state.promo_validada = False
+
+            st.error(
+                resultado.get(
+                    "mensaje",
+                    "El código promocional no es válido.",
+                )
+            )
+
+
+# ============================================================
+# REGISTRAR USO DEL CÓDIGO
+# ============================================================
+
+def registrar_uso_promo():
+
+    if not st.session_state.promo_validada:
+        return True
+
+    if st.session_state.promo_uso_registrado:
+        return True
+
+    codigo = st.session_state.codigo_promo
+
+    if not codigo:
+        return False
+
+    try:
+
+        registrar_uso_promocion(
+            codigo
         )
 
-        st.info(
-            "La validación del código promocional "
-            "se conectará con Supabase."
+        st.session_state.promo_uso_registrado = True
+
+        return True
+
+    except Exception as error:
+
+        st.error(
+            "El código fue validado, pero no fue posible "
+            "registrar su uso en Supabase."
         )
+
+        st.exception(error)
+
+        return False
+
+
+# ============================================================
+# ACCESO AL REPORTE
+# ============================================================
+
 def mostrar_acceso_reporte():
 
     if not st.session_state.resultado_extraccion:
@@ -567,15 +729,17 @@ def mostrar_acceso_reporte():
 
     st.divider()
 
-    st.subheader("5. Reporte financiero completo")
+    st.subheader(
+        "5. Reporte financiero completo"
+    )
 
     st.write(
-        "Obtén tu proyección financiera completa de "
-        "Modalidad 40."
+        "Obtén tu proyección financiera completa "
+        "de Modalidad 40."
     )
 
     # ========================================================
-    # SI PROMOCIÓN ES VÁLIDA
+    # PROMOCIÓN VÁLIDA
     # ========================================================
 
     if st.session_state.promo_validada:
@@ -590,15 +754,23 @@ def mostrar_acceso_reporte():
         return
 
     # ========================================================
-    # SI NO HAY PROMOCIÓN / PAGO
+    # PRECIO
     # ========================================================
+
+    try:
+
+        precio = obtener_precio_reporte()
+
+    except Exception:
+
+        precio = PRECIO_REPORTE_DEFAULT
 
     st.markdown(
         f"""
         <div class="card">
 
         <div class="precio">
-        ${PRECIO_REPORTE} MXN
+        ${precio:,.0f} MXN
         </div>
 
         <div class="centrado">
@@ -607,7 +779,7 @@ def mostrar_acceso_reporte():
 
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     st.write(
@@ -624,7 +796,7 @@ def mostrar_acceso_reporte():
         ✓ Retorno de inversión (ROI)<br>
         ✓ Escenarios de retiro
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     # ========================================================
@@ -634,18 +806,14 @@ def mostrar_acceso_reporte():
     if not st.session_state.pago_confirmado:
 
         if st.button(
-            f"💳 Obtener reporte por ${PRECIO_REPORTE} MXN",
+            f"💳 Obtener reporte por ${precio:,.0f} MXN",
             type="primary",
-            key="btn_pago"
+            key="btn_pago",
         ):
 
-            # =================================================
-            # AQUÍ CONECTAREMOS STRIPE / MERCADO PAGO
-            # =================================================
-
             st.info(
-                "La pasarela de pago se conectará en la "
-                "siguiente etapa."
+                "La pasarela de pago se conectará "
+                "en la siguiente etapa."
             )
 
     else:
@@ -664,31 +832,26 @@ def mostrar_descarga_reporte():
     )
 
     # ========================================================
-    # AQUÍ CONECTAREMOS:
-    #
-    # correo.py
-    #
-    # generar_pdf(...)
-    #
+    # REGISTRAR USO DEL PROMO
+    # ========================================================
+
+    if st.session_state.promo_validada:
+
+        registrar_uso_promo()
+
+    # ========================================================
+    # PDF
     # ========================================================
 
     st.info(
-        "El PDF ejecutivo será generado por correo.py."
+        "El PDF ejecutivo será generado por correo.py "
+        "cuando conectemos el motor de reportes."
     )
-
-    # Cuando correo.py genere el archivo, aquí tendremos:
-    #
-    # st.download_button(
-    #     "📥 Descargar reporte PDF",
-    #     data=pdf,
-    #     file_name="Reporte_Pension40.pdf",
-    #     mime="application/pdf"
-    # )
 
     st.button(
         "📥 Descargar reporte PDF",
         disabled=True,
-        key="btn_descarga_pdf"
+        key="btn_descarga_pdf",
     )
 
 
@@ -700,7 +863,9 @@ def panel_administrador():
 
     st.divider()
 
-    with st.expander("⚙️ Administración"):
+    with st.expander(
+        "⚙️ Administración"
+    ):
 
         # ====================================================
         # LOGIN
@@ -715,152 +880,334 @@ def panel_administrador():
             password = st.text_input(
                 "Contraseña",
                 type="password",
-                key="password_admin"
+                key="password_admin",
             )
 
             if st.button(
                 "🔐 Ingresar",
-                key="btn_admin_login"
+                key="btn_admin_login",
             ):
 
-                # =================================================
-                # AQUÍ CONECTAREMOS:
-                #
-                # base_datos.verificar_admin(password)
-                #
-                # La contraseña estará almacenada en:
-                #
-                # Supabase → configuraciones
-                #
-                # NO en app.py
-                # =================================================
+                try:
 
-                st.warning(
-                    "La autenticación administrativa se "
-                    "conectará con Supabase."
-                )
+                    correcto = verificar_password_admin(
+                        password
+                    )
+
+                except Exception as error:
+
+                    st.error(
+                        "No fue posible verificar "
+                        "la contraseña en Supabase."
+                    )
+
+                    st.exception(error)
+
+                    return
+
+                if correcto:
+
+                    st.session_state.admin_autenticado = True
+
+                    st.success(
+                        "Administrador autenticado."
+                    )
+
+                    st.rerun()
+
+                else:
+
+                    st.error(
+                        "Contraseña incorrecta."
+                    )
+
+            return
 
         # ====================================================
         # PANEL
         # ====================================================
 
-        else:
+        st.success(
+            "Administrador autenticado."
+        )
 
-            st.success(
-                "Administrador autenticado."
-            )
+        st.subheader(
+            "⚙️ Configuración de Pensión 40"
+        )
 
-            st.subheader(
-                "⚙️ Configuración de Pensión 40"
-            )
+        # ====================================================
+        # UMA
+        # ====================================================
 
-            # =================================================
-            # UMA
-            # =================================================
+        try:
 
-            st.number_input(
-                "Valor actual de UMA",
-                min_value=0.0,
-                step=0.01,
-                format="%.2f",
-                key="uma_admin"
-            )
+            uma_actual = obtener_uma()
 
-            if st.button(
-                "Guardar UMA",
-                key="btn_guardar_uma"
-            ):
+        except Exception:
 
-                # =============================================
-                # base_datos.actualizar_configuracion()
-                # =============================================
+            uma_actual = 117.31
+
+        uma_nueva = st.number_input(
+            "Valor actual de UMA",
+            min_value=0.01,
+            value=float(uma_actual),
+            step=0.01,
+            format="%.2f",
+            key="uma_admin",
+        )
+
+        if st.button(
+            "Guardar UMA",
+            key="btn_guardar_uma",
+        ):
+
+            try:
+
+                actualizar_uma(
+                    uma_nueva
+                )
 
                 st.success(
-                    "La UMA se guardará en Supabase."
+                    "✅ UMA actualizada correctamente "
+                    "en Supabase."
                 )
 
-            # =================================================
-            # PROMOCIONES
-            # =================================================
+            except Exception as error:
 
-            st.divider()
-
-            st.subheader(
-                "🎟️ Promociones"
-            )
-
-            st.write(
-                "Desde aquí podrás crear y administrar "
-                "códigos promocionales."
-            )
-
-            codigo = st.text_input(
-                "Nuevo código",
-                placeholder="Ej. P40-FACEBOOK-AGOSTO",
-                key="nuevo_codigo"
-            )
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-
-                activo = st.checkbox(
-                    "Código ACTIVO",
-                    value=True,
-                    key="nuevo_codigo_activo"
+                st.error(
+                    "No fue posible actualizar la UMA."
                 )
 
-            with col2:
+                st.exception(error)
 
-                limite = st.number_input(
-                    "Límite de usos",
-                    min_value=0,
-                    value=100,
-                    step=1,
-                    key="limite_codigo"
-                )
+        # ====================================================
+        # PROMOCIONES
+        # ====================================================
 
-            if st.button(
-                "➕ Crear promoción",
-                key="btn_crear_promo"
-            ):
+        st.divider()
 
-                # =============================================
-                # base_datos.crear_codigo_promocional()
-                # =============================================
+        st.subheader(
+            "🎟️ Crear promoción"
+        )
 
-                st.success(
-                    "La promoción se guardará en Supabase."
-                )
+        codigo = st.text_input(
+            "Nuevo código",
+            placeholder="Ej. P40-FACEBOOK-AGOSTO",
+            key="nuevo_codigo",
+        )
 
-            st.divider()
+        col1, col2 = st.columns(2)
 
-            st.subheader(
-                "📋 Promociones existentes"
+        with col1:
+
+            activo = st.checkbox(
+                "Código ACTIVO",
+                value=True,
+                key="nuevo_codigo_activo",
             )
+
+        with col2:
+
+            limite = st.number_input(
+                "Límite de usos",
+                min_value=0,
+                value=100,
+                step=1,
+                key="limite_codigo",
+            )
+
+        if st.button(
+            "➕ Crear promoción",
+            key="btn_crear_promo",
+        ):
+
+            if not codigo.strip():
+
+                st.warning(
+                    "Ingresa un código."
+                )
+
+            else:
+
+                try:
+
+                    estatus = (
+                        "ACTIVO"
+                        if activo
+                        else "INACTIVO"
+                    )
+
+                    crear_codigo_promocional(
+                        codigo=codigo,
+                        limite_usos=limite,
+                        estatus=estatus,
+                    )
+
+                    st.success(
+                        f"✅ Promoción {codigo.upper()} "
+                        "creada correctamente."
+                    )
+
+                    st.rerun()
+
+                except Exception as error:
+
+                    st.error(
+                        "No fue posible crear la promoción."
+                    )
+
+                    st.exception(error)
+
+        # ====================================================
+        # PROMOCIONES EXISTENTES
+        # ====================================================
+
+        st.divider()
+
+        st.subheader(
+            "📋 Promociones existentes"
+        )
+
+        try:
+
+            promociones = obtener_promociones()
+
+        except Exception as error:
+
+            st.error(
+                "No fue posible obtener las promociones "
+                "desde Supabase."
+            )
+
+            st.exception(error)
+
+            promociones = []
+
+        if not promociones:
 
             st.info(
-                "Aquí aparecerán las promociones almacenadas "
-                "en Supabase, con opción para activarlas o "
-                "desactivarlas."
+                "No existen promociones registradas."
             )
 
-            # ================================================
-            # base_datos.obtener_promociones()
-            # ================================================
+        else:
 
-            # =================================================
-            # CERRAR SESIÓN
-            # =================================================
+            for promo in promociones:
 
-            if st.button(
-                "Cerrar sesión administrativa",
-                key="btn_admin_logout"
-            ):
+                codigo_existente = promo.get(
+                    "codigo",
+                    "",
+                )
 
-                st.session_state.admin_autenticado = False
+                estatus_actual = promo.get(
+                    "estatus",
+                    "INACTIVO",
+                )
 
-                st.rerun()
+                usos = promo.get(
+                    "usos_actuales",
+                    0,
+                )
+
+                limite_usos = promo.get(
+                    "limite_usos",
+                    0,
+                )
+
+                col1, col2, col3 = st.columns(
+                    [2, 1, 1]
+                )
+
+                with col1:
+
+                    st.write(
+                        f"**{codigo_existente}**"
+                    )
+
+                    st.caption(
+                        f"Usos: {usos} / "
+                        f"{limite_usos if limite_usos else '∞'}"
+                    )
+
+                with col2:
+
+                    st.write(
+                        estatus_actual
+                    )
+
+                with col3:
+
+                    if estatus_actual == "ACTIVO":
+
+                        if st.button(
+                            "Desactivar",
+                            key=f"desactivar_{codigo_existente}",
+                        ):
+
+                            try:
+
+                                cambiar_estatus_promocion(
+                                    codigo_existente,
+                                    "INACTIVO",
+                                )
+
+                                st.success(
+                                    "Código desactivado."
+                                )
+
+                                st.rerun()
+
+                            except Exception as error:
+
+                                st.error(
+                                    "No fue posible "
+                                    "desactivar el código."
+                                )
+
+                                st.exception(error)
+
+                    else:
+
+                        if st.button(
+                            "Activar",
+                            key=f"activar_{codigo_existente}",
+                        ):
+
+                            try:
+
+                                cambiar_estatus_promocion(
+                                    codigo_existente,
+                                    "ACTIVO",
+                                )
+
+                                st.success(
+                                    "Código activado."
+                                )
+
+                                st.rerun()
+
+                            except Exception as error:
+
+                                st.error(
+                                    "No fue posible "
+                                    "activar el código."
+                                )
+
+                                st.exception(error)
+
+        # ====================================================
+        # CERRAR SESIÓN
+        # ====================================================
+
+        st.divider()
+
+        if st.button(
+            "Cerrar sesión administrativa",
+            key="btn_admin_logout",
+        ):
+
+            st.session_state.admin_autenticado = False
+
+            st.rerun()
 
 
 # ============================================================
@@ -883,7 +1230,7 @@ def mostrar_aviso_legal():
 
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -906,7 +1253,7 @@ def main():
     if st.button(
         "🚀 Calcular mi potencial de pensión",
         type="primary",
-        key="btn_calcular"
+        key="btn_calcular",
     ):
 
         procesar_informacion()
@@ -922,6 +1269,8 @@ def main():
     mostrar_aviso_legal()
 
     panel_administrador()
+
+
 # ============================================================
 # EJECUTAR
 # ============================================================
