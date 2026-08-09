@@ -167,11 +167,11 @@ def mostrar_resultado():
             <div class="etiqueta">Régimen Validado</div>
         </div>
         <div class="metric-box">
-            <div class="valor">{int(float(res.get('semanas_cotizadas', 0)))}</div>
+            <div class="valor">{{int(float(res.get('semanas_cotizadas', 0)))}}</div>
             <div class="etiqueta">Semanas Totales</div>
         </div>
         <div class="metric-box">
-            <div class="valor">${float(res.get('sbc_promedio', 0)):,.2f}</div>
+            <div class="valor">${{float(res.get('sbc_promedio', 0)):,.2f}}</div>
             <div class="etiqueta">SBC Promedio Actual</div>
         </div>
     </div>
@@ -232,7 +232,7 @@ def mostrar_descarga_reporte():
     ganancia_neta = max(0.0, pension_m40 - pension_normal)
     roi_meses = inversion_total_m40 / ganancia_neta if ganancia_neta > 0 else 0.0
 
-    # TABLA COMPARATIVA DIRECTA DE ALTO IMPACTO COMERCIAL (CORREGIDA)
+    # TABLA COMPARATIVA DIRECTA CON CORRECCIÓN DE LAYOUT RESPONSIVO
     st.markdown("#### 🔄 Tabla Comparativa de Beneficios")
     
     tabla_comparativa = pd.DataFrame({
@@ -262,7 +262,17 @@ def mostrar_descarga_reporte():
         ]
     })
     
-    st.table(tabla_comparativa)
+    # RENDERIZADOR OPTIMIZADO: Elimina el colapso vertical y fuerza un ancho completo responsivo
+    st.dataframe(
+        tabla_comparativa,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Factor de Análisis": st.column_config.TextColumn(width="medium"),
+            "Pensión Normal (Sin Estrategia)": st.column_config.TextColumn(width="medium"),
+            "Plan Optimizado Pensión 40": st.column_config.TextColumn(width="medium")
+        }
+    )
 
     # TARJETA DE ACCIÓN COMERCIAL (ROI)
     st.markdown(f"""
@@ -272,7 +282,6 @@ def mostrar_descarga_reporte():
         Recuperas toda tu inversión acumulada en tan solo <b>{roi_meses:.1f} meses</b> de haber iniciado tus cobros del IMSS.
     </div>
     """, unsafe_allow_html=True)
-
     # CONTINÚA EN EL BLOQUE 3...
     # ============================================================
     # PENSION 40
