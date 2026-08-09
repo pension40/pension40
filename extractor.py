@@ -201,14 +201,114 @@ def extraer_texto_pdf(ruta_pdf: str) -> str:
 
 def extraer_nombre(texto: str) -> Optional[str]:
     """
-    Busca el nombre del asegurado.
+    Busca el nombre del asegurado (titular de la Constancia).
 
-    Se contemplan diferentes etiquetas que pueden aparecer
-    en documentos del IMSS.
+    IMPORTANTE:
+    La Constancia de Semanas Cotizadas del IMSS NO utiliza una
+    etiqueta "NOMBRE:" o "ASEGURADO:" para el titular; el nombre
+    aparece suelto en el bloque que sigue a "Estimado(a),"
+    hasta llegar a la etiqueta "NSS". Ese bloque también
+    contiene texto de la tabla vecina (fecha de emisión,
+    encabezados "DD MM YYYY", etc.), intercalado por el layout
+    de dos columnas del PDF, así que no se puede anclar de
+    forma rígida entre ambas etiquetas.
+
+    Cada registro del historial laboral además contiene la
+    etiqueta "Nombre del patrón", que un regex genérico de
+    "NOMBRE" capturaría por error (coincide primero en el
+    texto y no es el nombre del asegurado, sino el de un
+    empleador cualquiera).
+
+    Estrategia:
+    1. Aislar el bloque de texto entre "Estimado(a)," y "NSS".
+    2. Dentro de ese bloque, evaluar cada línea y descartar las
+       que son ruido conocido (fechas, encabezados DD/MM/YYYY,
+       o líneas con dígitos).
+    3. Quedarse con la línea restante que más parece un nombre
+       de persona (2 o más palabras, solo letras y espacios).
     """
 
+    idx_estimado = re.search(
+        r"Estimado\(a\)",
+        texto,
+        re.IGNORECASE
+    )
+
+    idx_nss = re.search(
+        r"\bNSS\b",
+        texto,
+        re.IGNORECASE
+    )
+
+    if idx_estimado and idx_nss and idx_nss.start() > idx_estimado.end():
+
+        bloque = texto[idx_estimado.end():idx_nss.start()]
+
+        ruido_conocido = {
+            "DD MM YYYY",
+            "DD/MM/YYYY",
+        }
+
+        candidatos = []
+
+        for linea in bloque.split("\n"):
+
+            linea_limpia = linea.strip(" ,:\t")
+
+            if not linea_limpia:
+                continue
+
+            if linea_limpia.upper() in ruido_conocido:
+                continue
+
+            # Descartar líneas con dígitos (fechas, folios, etc.)
+            if re.search(r"\d", linea_limpia):
+                continue
+
+            # Descartar líneas que contienen palabras de ruido
+            # típicas de encabezados de tabla vecinos.
+            if re.search(
+                r"FECHA|EMISI[ÓO]N|REPORTE",
+                linea_limpia,
+                re.IGNORECASE
+            ):
+                continue
+
+            # El nombre real es solo letras/acentos y espacios,
+            # con al menos dos palabras.
+            if re.fullmatch(
+                r"[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{5,}",
+                linea_limpia
+            ) and len(linea_limpia.split()) >= 2:
+
+                candidatos.append(linea_limpia)
+
+        if candidatos:
+
+            # Se toma el candidato más largo: es la heurística
+            # más simple para preferir un nombre completo sobre
+            # fragmentos de ruido residual.
+            mejor_candidato = max(
+                candidatos,
+                key=len
+            )
+
+            nombre = limpiar_texto(
+                mejor_candidato
+            )
+
+            if nombre:
+                return nombre.strip()
+
+    # --------------------------------------------------------
+    # RESPALDO: otras etiquetas explícitas de nombre
+    #
+    # Se excluye "del patrón" para no capturar por error el
+    # nombre de un empleador del historial laboral.
+    # --------------------------------------------------------
+
     patrones = [
-        r"NOMBRE\s*[:\-]?\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{5,})",
+        r"NOMBRE\s*[:\-]?\s*(?!DEL\s+PATR)([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{5,})",
         r"ASEGURADO\s*[:\-]?\s*([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{5,})",
     ]
 
@@ -271,8 +371,120 @@ def extraer_nss(texto: str) -> Optional[str]:
 
 
 # ============================================================
+# CURP Y FECHA DE NACIMIENTO DERIVADA
+# ============================================================
+
+def extraer_curp(texto: str) -> Optional[str]:
+    """
+    Busca el CURP (18 caracteres alfanuméricos) del asegurado.
+    """
+
+    coincidencia = re.search(
+        r"CURP\s*[:\-]?\s*([A-Z]{4}\d{6}[A-Z]{6}[A-Z0-9]\d)",
+        texto,
+        re.IGNORECASE
+    )
+
+    if coincidencia:
+        return coincidencia.group(1).upper()
+
+    return None
+
+
+def calcular_fecha_nacimiento_desde_curp(
+    curp: str
+) -> Optional[datetime]:
+    """
+    Deriva la fecha de nacimiento a partir del CURP.
+
+    La Constancia de Semanas Cotizadas del IMSS no incluye una
+    etiqueta explícita de "fecha de nacimiento", pero el CURP
+    siempre está presente y la codifica en sus posiciones 5-10
+    (AAMMDD), por lo que es la fuente más confiable disponible
+    en este documento.
+
+    Regla oficial de RENAPO para el siglo (posición 17, índice
+    16 en base 0):
+        - Dígito (0-9): nació antes del año 2000 (siglo XX).
+        - Letra (A-Z): nació en el año 2000 o después (XXI).
+    """
+
+    if not curp or len(curp) < 17:
+        return None
+
+    try:
+
+        aa = int(curp[4:6])
+        mm = int(curp[6:8])
+        dd = int(curp[8:10])
+
+    except ValueError:
+
+        return None
+
+    caracter_siglo = curp[16]
+
+    if caracter_siglo.isdigit():
+        anio = 1900 + aa
+    else:
+        anio = 2000 + aa
+
+    try:
+
+        return datetime(anio, mm, dd)
+
+    except ValueError:
+
+        return None
+
+
+# ============================================================
 # FECHA DE NACIMIENTO
 # ============================================================
+
+# ============================================================
+# FECHA DE EMISIÓN DEL REPORTE
+# ============================================================
+
+def extraer_fecha_emision(
+    texto: str
+) -> Optional[datetime]:
+    """
+    Busca la fecha de emisión del reporte.
+
+    Se usa como fecha de referencia para calcular la duración
+    de empleos que siguen "Vigente" (sin fecha de baja), y así
+    no subestimar su peso en el cálculo del SBC promedio.
+
+    Formato en el documento: "DD / MM / YYYY" con la etiqueta
+    "DD MM YYYY" justo debajo.
+    """
+
+    patron = (
+        r"Fecha\s+de\s+emisi[óo]n\s+del\s+reporte"
+        r"\s*\n?\s*"
+        r"(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{2,4})"
+    )
+
+    coincidencia = re.search(
+        patron,
+        texto,
+        re.IGNORECASE
+    )
+
+    if coincidencia:
+
+        dia, mes, anio = coincidencia.groups()
+
+        fecha = convertir_fecha(
+            f"{dia}/{mes}/{anio}"
+        )
+
+        if fecha:
+            return fecha
+
+    return None
+
 
 def extraer_fecha_nacimiento(
     texto: str
@@ -311,14 +523,52 @@ def extraer_fecha_nacimiento(
 # ============================================================
 
 def extraer_primera_fecha_cotizacion(
-    texto: str
+    texto: str,
+    historial_laboral: Optional[list] = None
 ) -> Optional[datetime]:
     """
-    Busca fechas relacionadas con el primer registro laboral.
+    Determina la primera fecha de cotización del asegurado.
 
-    La lógica definitiva deberá contrastarse con las tablas
-    del historial laboral.
+    FUENTE PRIMARIA (confiable):
+        El historial laboral estructurado (extraído de las
+        tablas del PDF) contiene un registro por cada periodo
+        laboral, con su "fecha_inicio" ya calculada. La primera
+        cotización real es la fecha de inicio MÍNIMA de todos
+        los registros, sin importar el orden en que aparezcan
+        en el documento.
+
+        La Constancia de Semanas Cotizadas del IMSS lista los
+        empleos del más reciente al más antiguo, por lo que
+        buscar la fecha con un regex de texto libre (ver más
+        abajo) captura por error la fecha de alta del empleo
+        MÁS RECIENTE, no la primera cotización real.
+
+    RESPALDO (menos confiable):
+        Si no se dispone del historial laboral (por ejemplo,
+        el PDF no tiene tablas reconocibles), se intenta un
+        regex de texto sobre frases explícitas. Este método
+        puede fallar si el documento no contiene literalmente
+        esas frases o si repite la etiqueta varias veces.
     """
+
+    # --------------------------------------------------------
+    # FUENTE PRIMARIA: historial laboral estructurado
+    # --------------------------------------------------------
+
+    if historial_laboral:
+
+        fechas_inicio = [
+            registro["fecha_inicio"]
+            for registro in historial_laboral
+            if registro.get("fecha_inicio") is not None
+        ]
+
+        if fechas_inicio:
+            return min(fechas_inicio)
+
+    # --------------------------------------------------------
+    # RESPALDO: regex de texto libre
+    # --------------------------------------------------------
 
     patrones = [
         r"PRIMERA\s+FECHA.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
@@ -397,7 +647,76 @@ def extraer_semanas_cotizadas(
 ) -> Optional[float]:
     """
     Busca el total de semanas cotizadas.
+
+    FUENTE PRIMARIA (confiable):
+        La "Cadena original" que el IMSS incluye al final del
+        documento (usada para el sello digital) contiene el
+        texto literal "Número total de semanas cotizadas:N".
+        Al formar parte de los datos firmados digitalmente,
+        es la fuente más confiable del documento.
+
+    RESPALDO (menos confiable):
+        La tabla superior del documento también muestra
+        "Total de semanas cotizadas" seguido del valor, pero
+        en el texto plano extraído por pdfplumber el número
+        puede terminar en una línea distinta a la etiqueta
+        (por el layout de dos columnas), con otro texto del
+        documento (como el CURP) intercalado. Por eso se exige
+        que el número aparezca solo en su propia línea.
     """
+
+    # --------------------------------------------------------
+    # FUENTE PRIMARIA: cadena original firmada digitalmente
+    # --------------------------------------------------------
+
+    patron_cadena_original = (
+        r"[Nn][uú]mero\s+total\s+de\s+semanas\s+cotizadas"
+        r"\s*:\s*(\d+)"
+    )
+
+    coincidencia = re.search(
+        patron_cadena_original,
+        texto
+    )
+
+    if coincidencia:
+
+        valor = convertir_numero(
+            coincidencia.group(1)
+        )
+
+        if valor is not None:
+            return valor
+
+    # --------------------------------------------------------
+    # RESPALDO: "Total de semanas cotizadas" + número en
+    # su propia línea (tolera texto intermedio como el CURP)
+    # --------------------------------------------------------
+
+    patron_total_multilinea = (
+        r"Total\s+de\s+semanas\s+cotizadas"
+        r"[^\n]*\n"
+        r"[^\n]*?(?:^|\s)(\d{1,5})\s*(?:\n|$)"
+    )
+
+    coincidencia = re.search(
+        patron_total_multilinea,
+        texto,
+        re.IGNORECASE | re.MULTILINE
+    )
+
+    if coincidencia:
+
+        valor = convertir_numero(
+            coincidencia.group(1)
+        )
+
+        if valor is not None:
+            return valor
+
+    # --------------------------------------------------------
+    # RESPALDO FINAL: patrones simples (mismo renglón)
+    # --------------------------------------------------------
 
     patrones = [
         r"SEMANAS\s+COTIZADAS\s*[:\-]?\s*([\d,]+(?:\.\d+)?)",
@@ -537,7 +856,32 @@ def extraer_tablas_pdf(
 
 def _fila_contiene_fecha(fila) -> bool:
     """
-    Determina si una fila contiene al menos una fecha.
+    Determina si una fila corresponde al ENCABEZADO de un
+    periodo laboral (no a un movimiento dentro de ese periodo).
+
+    IMPORTANTE:
+    La Constancia de Semanas Cotizadas del IMSS presenta, por
+    cada empleo, dos tablas distintas:
+
+        1. Encabezado del empleo: Nombre del patrón, Registro
+           Patronal, Entidad federativa, "Fecha de alta" /
+           "Fecha de baja" y el SBC. Esta fila define el
+           periodo laboral real.
+
+        2. Movimientos del empleo: "Tipo de movimiento"
+           (ALTA, BAJA, REINGRESO, MODIFICACION DE SALARIO),
+           con su propia fecha. Estas filas son sub-eventos
+           DENTRO del mismo periodo, no periodos nuevos.
+
+    Un filtro que solo exige "contiene una fecha" deja pasar
+    ambos tipos de fila. Esto genera registros fantasma de
+    1 día (la fecha de un movimiento tratada como un periodo
+    laboral completo), que contaminan el cálculo del SBC
+    promedio ponderado por días.
+
+    Por eso se exige la presencia explícita de la etiqueta
+    "Fecha de alta", que solo aparece en el encabezado real
+    del empleo.
     """
 
     if not fila:
@@ -548,6 +892,17 @@ def _fila_contiene_fecha(fila) -> bool:
         for celda in fila
         if celda is not None
     )
+
+    contiene_fecha_alta = bool(
+        re.search(
+            r"FECHA\s+DE\s+ALTA",
+            texto,
+            re.IGNORECASE
+        )
+    )
+
+    if not contiene_fecha_alta:
+        return False
 
     patron_fecha = (
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"
@@ -767,13 +1122,24 @@ def _buscar_valor_monetario(
 
 def normalizar_registro_laboral(
     fila,
-    pagina: int
+    pagina: int,
+    fecha_referencia: Optional[datetime] = None
 ) -> Optional[dict]:
     """
-    Convierte una fila de tabla en un registro laboral.
+    Convierte una fila de encabezado de empleo en un registro
+    laboral (fecha_inicio, fecha_fin, días, SBC).
 
-    Esta función será afinada una vez que conozcamos
-    exactamente el formato del PDF.
+    EMPLEO VIGENTE:
+    Cuando el empleo sigue activo, la celda de "Fecha de baja"
+    dice literalmente "Vigente" (sin fecha). En ese caso solo
+    se encuentra la fecha de alta, y el periodo se calcularía
+    erróneamente como de 1 solo día si no se usa una fecha de
+    referencia como fin del periodo.
+
+    Se usa "fecha_referencia" (la fecha de emisión del reporte,
+    o la fecha actual si no se conoce) como fecha de baja
+    implícita, para no subestimar el peso de un empleo vigente
+    en el cálculo del SBC promedio ponderado por días.
     """
 
     if not fila:
@@ -787,9 +1153,29 @@ def normalizar_registro_laboral(
     if not fechas:
         return None
 
+    texto_fila = " ".join(
+        limpiar_texto(celda)
+        for celda in fila
+        if celda is not None
+    )
+
+    es_vigente = bool(
+        re.search(
+            r"VIGENTE",
+            texto_fila,
+            re.IGNORECASE
+        )
+    )
+
     fecha_inicio = min(fechas)
 
-    fecha_fin = max(fechas)
+    if es_vigente and len(fechas) == 1:
+
+        fecha_fin = fecha_referencia or datetime.now()
+
+    else:
+
+        fecha_fin = max(fechas)
 
     sbc = _buscar_sbc(fila)
 
@@ -797,8 +1183,9 @@ def normalizar_registro_laboral(
 
     if dias is None:
 
-        # Si existen dos fechas, calculamos días aproximados
-        # como respaldo.
+        # Si existen dos fechas (o el empleo es vigente y se
+        # usó la fecha de referencia), calculamos días
+        # aproximados como respaldo.
         if fecha_fin >= fecha_inicio:
 
             dias = (
@@ -823,12 +1210,18 @@ def normalizar_registro_laboral(
 # ============================================================
 
 def extraer_historial_laboral(
-    ruta_pdf: str
+    ruta_pdf: str,
+    fecha_referencia: Optional[datetime] = None
 ) -> list:
     """
     Extrae registros laborales de todas las tablas.
 
     El resultado se ordena de lo más reciente a lo más antiguo.
+
+    "fecha_referencia" se usa como fecha de baja implícita
+    para empleos que siguen "Vigente" (ver
+    normalizar_registro_laboral). Si no se proporciona, cada
+    registro vigente usará la fecha actual del sistema.
     """
 
     tablas = extraer_tablas_pdf(
@@ -847,7 +1240,8 @@ def extraer_historial_laboral(
 
             registro = normalizar_registro_laboral(
                 fila,
-                pagina
+                pagina,
+                fecha_referencia=fecha_referencia
             )
 
             if registro:
@@ -1013,15 +1407,61 @@ def analizar_pdf(
         texto
     )
 
-    fecha_nacimiento = (
-        extraer_fecha_nacimiento(
+    curp = extraer_curp(
+        texto
+    )
+
+    # --------------------------------------------------------
+    # Fecha de nacimiento
+    #
+    # FUENTE PRIMARIA: derivada del CURP (siempre presente en
+    # la Constancia). FUENTE RESPALDO: regex de texto libre,
+    # para documentos que sí incluyan una etiqueta explícita
+    # de "fecha de nacimiento".
+    # --------------------------------------------------------
+
+    fecha_nacimiento = None
+
+    if curp:
+
+        fecha_nacimiento = calcular_fecha_nacimiento_desde_curp(
+            curp
+        )
+
+    if fecha_nacimiento is None:
+
+        fecha_nacimiento = extraer_fecha_nacimiento(
             texto
         )
+
+    fecha_emision = extraer_fecha_emision(
+        texto
+    )
+
+    # --------------------------------------------------------
+    # Historial laboral
+    #
+    # IMPORTANTE: se extrae ANTES de determinar la primera
+    # fecha de cotización, porque es la fuente confiable para
+    # ese dato (ver extraer_primera_fecha_cotizacion).
+    #
+    # Se pasa "fecha_emision" como referencia para calcular
+    # correctamente la duración de empleos "Vigente".
+    # --------------------------------------------------------
+
+    historial = extraer_historial_laboral(
+        ruta_pdf,
+        fecha_referencia=fecha_emision
+    )
+
+    ultimas_250 = calcular_ultimas_250_semanas(
+        historial
     )
 
     primera_fecha = (
         extraer_primera_fecha_cotizacion(
-            texto
+            texto,
+            historial_laboral=historial
         )
     )
 
@@ -1041,23 +1481,27 @@ def analizar_pdf(
         semanas
     )
 
-    # --------------------------------------------------------
-    # Historial laboral
-    # --------------------------------------------------------
+    edad_actual = None
 
-    historial = extraer_historial_laboral(
-        ruta_pdf
-    )
+    if fecha_nacimiento:
 
-    ultimas_250 = calcular_ultimas_250_semanas(
-        historial
-    )
+        hoy = datetime.now()
+
+        edad_actual = (
+            hoy.year - fecha_nacimiento.year
+            - (
+                (hoy.month, hoy.day)
+                < (fecha_nacimiento.month, fecha_nacimiento.day)
+            )
+        )
 
     return {
         "nombre": nombre,
         "nss": nss,
+        "curp": curp,
         "fecha_nacimiento":
             fecha_nacimiento,
+        "edad_actual": edad_actual,
         "primera_fecha_cotizacion":
             primera_fecha,
         "ley_73": ley_73,
