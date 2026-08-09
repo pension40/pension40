@@ -22,7 +22,7 @@ from base_datos import (
     obtener_promociones,
 )
 
-from calculador import calcular_escenario, resumen_escenario
+from calculador import calculador, resumen_escenario
 
 # ============================================================
 # EXTRACTOR
