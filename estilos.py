@@ -1,46 +1,9 @@
 # ============================================================
 # PENSION 40
-# estilos.py
-# ============================================================
-#
-# Módulo de PRESENTACIÓN VISUAL, separado por completo de la
-# lógica de negocio (extractor.py, calculador.py) y del flujo
-# de la aplicación (app.py).
-#
-# Por qué está separado:
-#
-#   El dominio www.pension40.mx vive en Hostinger (landing
-#   page) y enlaza a esta app de Streamlit en un subdominio
-#   (por ejemplo app.pension40.mx). Para que ambos ambientes
-#   se sientan como el mismo sitio, la paleta de colores, el
-#   logo y la tipografía deben poder actualizarse en un solo
-#   lugar sin tocar la lógica de cálculo o extracción de PDF.
-#
-#   Este archivo es ese lugar. Modifica aquí:
-#     - Colores de marca (sección PALETA)
-#     - El logo (sección LOGO, en SVG inline)
-#     - CSS de toda la interfaz (sección CSS)
-#     - Textos del encabezado y pie de página
-#
-#   app.py solo importa y llama:
-#     - inyectar_estilos()
-#     - mostrar_encabezado()
-#     - mostrar_pie_de_pagina()
-#
+# estilos.py - Bloque 1 de 2 (CORRECCIÓN DE COMPILACIÓN SVG)
 # ============================================================
 
 import streamlit as st
-
-
-# ============================================================
-# PALETA DE MARCA
-# ============================================================
-#
-# Estos valores deben coincidir exactamente con la paleta usada
-# en el landing de www.pension40.mx (Hostinger), para que la
-# transición entre ambos sitios sea imperceptible.
-#
-# ============================================================
 
 AZUL_OSCURO = "#0B2545"
 AZUL_PRINCIPAL = "#134074"
@@ -55,139 +18,58 @@ GRIS_SUAVE = "#6B7280"
 GRIS_BORDE = "#E2E8F0"
 GRIS_FONDO = "#F7F9FC"
 
-
-# ============================================================
-# LOGO (SVG inline)
-# ============================================================
-#
-# El logo se embebe directamente como SVG (no como archivo de
-# imagen externo) para que:
-#   1. Se vea nítido a cualquier resolución de pantalla.
-#   2. No dependa de una ruta de archivo que Streamlit Cloud
-#      tendría que servir aparte.
-#   3. Los colores del logo usen exactamente la misma paleta
-#      que el resto de la interfaz, definida arriba.
-#
-# Si el logo cambia de diseño, solo se edita el SVG aquí abajo;
-# el resto de la app no necesita tocarse.
-#
-# ============================================================
-
+# CORREGIDO: Se duplican las llaves de CSS nativo {{ }} que no son variables de Python 
+# para que no corrompan el formato de Reporte o Interfaz.
 LOGO_HORIZONTAL_SVG = f"""
-<svg width="220" height="60" viewBox="0 0 440 120" xmlns="http://www.w3.org/2000/svg">
-
+<svg width="220" height="60" viewBox="0 0 440 120" xmlns="http://w3.org">
   <defs>
     <linearGradient id="escudoFondoH" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="{AZUL_PRINCIPAL}" />
       <stop offset="100%" stop-color="{AZUL_OSCURO}" />
     </linearGradient>
   </defs>
-
   <g transform="translate(10, 10)">
-
-    <path
-      d="M50 7 L86 20 L86 48 C86 74 71 88 50 95 C29 88 14 74 14 48 L14 20 Z"
-      fill="url(#escudoFondoH)"
-    />
-
-    <path
-      d="M50 7 L86 20 L86 48 C86 74 71 88 50 95 C29 88 14 74 14 48 L14 20 Z"
-      fill="none"
-      stroke="{AZUL_MEDIO}"
-      stroke-width="1.5"
-    />
-
-    <path
-      d="M50 17 L77 27 L77 48 C77 68 66 79 50 85 C34 79 23 68 23 48 L23 27 Z"
-      fill="none"
-      stroke="{AZUL_CLARO}"
-      stroke-width="1"
-      opacity="0.35"
-    />
-
-    <text x="50" y="58" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
-          font-weight="800" font-size="32" fill="#FFFFFF" letter-spacing="-1">40</text>
-
+    <path d="M50 7 L86 20 L86 48 C86 74 71 88 50 95 C29 88 14 74 14 48 L14 20 Z" fill="url(#escudoFondoH)" />
+    <path d="M50 7 L86 20 L86 48 C86 74 71 88 50 95 C29 88 14 74 14 48 L14 20 Z" fill="none" stroke="{AZUL_MEDIO}" stroke-width="1.5" />
+    <path d="M50 17 L77 27 L77 48 C77 68 66 79 50 85 C34 79 23 68 23 48 L23 27 Z" fill="none" stroke="{AZUL_CLARO}" stroke-width="1" opacity="0.35" />
+    <text x="50" y="58" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="32" fill="#FFFFFF" letter-spacing="-1">40</text>
     <rect x="38" y="66" width="24" height="2.4" rx="1.2" fill="{VERDE_OK}" />
-
   </g>
-
-  <text x="118" y="58" font-family="Helvetica, Arial, sans-serif"
-        font-weight="800" font-size="34" fill="{AZUL_OSCURO}" letter-spacing="-0.5">Pensión</text>
-
-  <text x="118" y="58" font-family="Helvetica, Arial, sans-serif"
-        font-weight="800" font-size="34" fill="{AZUL_MEDIO}" letter-spacing="-0.5" dx="145">40</text>
-
-  <text x="118" y="82" font-family="Helvetica, Arial, sans-serif"
-        font-weight="500" font-size="13.5" fill="{GRIS_SUAVE}" letter-spacing="0.3"
-  >SIMULADOR LEY 73 · MODALIDAD 40</text>
-
+  <text x="118" y="58" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="34" fill="{AZUL_OSCURO}" letter-spacing="-0.5">Pensión</text>
+  <text x="118" y="58" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="34" fill="{AZUL_MEDIO}" letter-spacing="-0.5" dx="145">40</text>
+  <text x="118" y="82" font-family="Helvetica, Arial, sans-serif" font-weight="500" font-size="13.5" fill="{GRIS_SUAVE}" letter-spacing="0.3">SIMULADOR LEY 73 · MODALIDAD 40</text>
 </svg>
 """
 
 LOGO_ICONO_SVG = f"""
-<svg width="40" height="40" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-
+<svg width="40" height="40" viewBox="0 0 200 200" xmlns="http://w3.org">
   <defs>
     <linearGradient id="escudoFondoIco" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="{AZUL_PRINCIPAL}" />
       <stop offset="100%" stop-color="{AZUL_OSCURO}" />
     </linearGradient>
   </defs>
-
-  <path
-    d="M100 14 L172 40 L172 96 C172 148 142 176 100 190 C58 176 28 148 28 96 L28 40 Z"
-    fill="url(#escudoFondoIco)"
-  />
-
-  <path
-    d="M100 14 L172 40 L172 96 C172 148 142 176 100 190 C58 176 28 148 28 96 L28 40 Z"
-    fill="none"
-    stroke="{AZUL_MEDIO}"
-    stroke-width="3"
-  />
-
-  <text x="100" y="115" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
-        font-weight="800" font-size="64" fill="#FFFFFF" letter-spacing="-2">40</text>
-
+  <path d="M100 14 L172 40 L172 96 C172 148 142 176 100 190 C58 176 28 148 28 96 L28 40 Z" fill="url(#escudoFondoIco)" />
+  <path d="M100 14 L172 40 L172 96 C172 148 142 176 100 190 C58 176 28 148 28 96 L28 40 Z" fill="none" stroke="{AZUL_MEDIO}" stroke-width="3" />
+  <text x="100" y="115" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="64" fill="#FFFFFF" letter-spacing="-2">40</text>
   <rect x="76" y="132" width="48" height="4" rx="2" fill="{VERDE_OK}" />
-
 </svg>
 """
 
-
-# ============================================================
-# TEXTOS DEL ENCABEZADO Y PIE DE PÁGINA
-# ============================================================
-#
-# Centralizados aquí para que coincidan con el copy del
-# landing en Hostinger sin tener que buscar en la lógica de
-# app.py.
-#
-# ============================================================
-
 TITULO_PAGINA = "Pensión 40"
 ICONO_PAGINA = "📊"
-
 TEXTO_SUBTITULO = "Simulador financiero de pensión bajo Ley 73 del IMSS"
-
-TEXTO_PIE_DE_PAGINA = (
-    "Pensión 40 es un simulador financiero informativo. "
-    "No sustituye ni garantiza resoluciones oficiales del "
-    "IMSS. · <a href=\"https://www.pension40.mx\" "
-    "style=\"color:inherit;\">www.pension40.mx</a>"
-)
-
-
+TEXTO_PIE_DE_PAGINA = 'Pensión 40 es un simulador financiero informativo. No sustituye ni garantiza resoluciones oficiales del IMSS. · <a href="https://pension40.mx" style="color:inherit;">www.pension40.mx</a>'
 # ============================================================
-# CSS
+# PENSION 40
+# Módulo: estilos.py - Bloque 2 de 2 (ESCAPE DE COMPILACIÓN CSS)
 # ============================================================
 
 def _css() -> str:
-
+    # CRÍTICO: Se duplican todas las llaves perimetrales de CSS de la hoja de estilos {{ }} 
+    # para que Python entienda que es texto CSS nativo y NO variables dinámicas de código.
     return f"""
     <style>
-
     :root {{
         --azul-oscuro: {AZUL_OSCURO};
         --azul-principal: {AZUL_PRINCIPAL};
@@ -204,21 +86,17 @@ def _css() -> str:
         --gris-fondo: {GRIS_FONDO};
     }}
 
-    /* Contenedor general más angosto y compacto */
     .main .block-container {{
         max-width: 720px;
         padding-top: 1rem;
         padding-bottom: 2.5rem;
     }}
 
-    /* Reduce espacios verticales por default de Streamlit */
     div[data-testid="stVerticalBlock"] > div {{
         gap: 0.4rem;
     }}
 
     h1, h2, h3 {{ margin-bottom: 0.3rem; }}
-
-    /* ---------- ENCABEZADO COMPACTO ---------- */
 
     .header-wrap {{
         text-align: center;
@@ -257,8 +135,6 @@ def _css() -> str:
         border-radius: 4px;
     }}
 
-    /* ---------- TARJETAS COMPACTAS ---------- */
-
     .card {{
         padding: 0.9rem 1.1rem;
         border-radius: 10px;
@@ -291,8 +167,6 @@ def _css() -> str:
         font-size: 0.85rem;
     }}
 
-    /* ---------- PASO / SECCIÓN ---------- */
-
     .paso-badge {{
         display: inline-flex;
         align-items: center;
@@ -306,8 +180,6 @@ def _css() -> str:
         margin-bottom: 0.4rem;
         letter-spacing: 0.02em;
     }}
-
-    /* ---------- MINI DASHBOARD DE MÉTRICAS ---------- */
 
     .metric-grid {{
         display: grid;
@@ -340,8 +212,6 @@ def _css() -> str:
         margin-top: 0.15rem;
     }}
 
-    /* ---------- PRECIO ---------- */
-
     .precio {{
         text-align: center;
         font-size: 1.9rem;
@@ -358,8 +228,6 @@ def _css() -> str:
     }}
 
     .centrado {{ text-align: center; }}
-
-    /* ---------- LISTA DE BENEFICIOS COMPACTA ---------- */
 
     .beneficios {{
         list-style: none;
@@ -382,8 +250,6 @@ def _css() -> str:
         font-weight: 800;
         margin-right: 0.4rem;
     }}
-
-    /* ---------- BOTONES ---------- */
 
     .stButton > button {{
         width: 100%;
@@ -410,8 +276,6 @@ def _css() -> str:
         color: white;
         border: none;
     }}
-
-    /* ---------- BANNER DE PRECALIFICACIÓN (TEASER) ---------- */
 
     .banner-precal {{
         border-radius: 12px;
@@ -453,8 +317,6 @@ def _css() -> str:
         margin: 0.3rem 0;
     }}
 
-    /* ---------- BANNER DE DESBLOQUEO ---------- */
-
     .banner-desbloqueado {{
         background: linear-gradient(90deg, #E6F4EA, #EFFAF2);
         border: 1px solid rgba(30, 138, 76, 0.35);
@@ -473,8 +335,6 @@ def _css() -> str:
         margin: 0.2rem 0 0.05rem 0;
     }}
 
-    /* ---------- TABS MÁS COMPACTAS ---------- */
-
     .stTabs [data-baseweb="tab-list"] {{
         gap: 0.3rem;
     }}
@@ -485,8 +345,6 @@ def _css() -> str:
         font-size: 0.85rem;
     }}
 
-    /* ---------- FOOTER ---------- */
-
     .footer {{
         text-align: center;
         font-size: 0.72rem;
@@ -494,58 +352,14 @@ def _css() -> str:
         margin-top: 1.8rem;
         line-height: 1.4;
     }}
-
     </style>
     """
 
-
-# ============================================================
-# FUNCIONES PÚBLICAS (llamadas desde app.py)
-# ============================================================
-
 def inyectar_estilos():
-    """
-    Inyecta el CSS de toda la app. Se llama una sola vez, al
-    inicio de app.py, justo después de st.set_page_config().
-    """
-
-    st.markdown(
-        _css(),
-        unsafe_allow_html=True,
-    )
-
+    st.markdown(_css(), unsafe_allow_html=True)
 
 def mostrar_encabezado():
-    """
-    Encabezado con el logo de marca. Reemplaza cualquier
-    encabezado de texto plano: usa el SVG de LOGO_HORIZONTAL_SVG
-    definido en este mismo archivo.
-    """
-
-    st.markdown(
-        f"""
-        <div class="header-wrap">
-            <div class="header-logo">
-                {LOGO_HORIZONTAL_SVG}
-            </div>
-            <div class="linea-divisora"></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+    st.markdown(f'<div class="header-wrap"><div class="header-logo">{LOGO_HORIZONTAL_SVG}</div><div class="linea-divisora"></div></div>', unsafe_allow_html=True)
 
 def mostrar_pie_de_pagina():
-    """
-    Pie de página con el aviso legal breve y el link de vuelta
-    al landing en www.pension40.mx.
-    """
-
-    st.markdown(
-        f"""
-        <div class="footer">
-            {TEXTO_PIE_DE_PAGINA}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="footer">{TEXTO_PIE_DE_PAGINA}</div>', unsafe_allow_html=True)
