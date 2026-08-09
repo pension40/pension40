@@ -40,6 +40,34 @@ except ImportError:
 
 
 # ============================================================
+# CALCULADOR
+# ============================================================
+
+try:
+    from calculador import (
+        calcular_escenario,
+        resumen_escenario,
+        CalculadorPensionError,
+    )
+    CALCULADOR_DISPONIBLE = True
+
+except ImportError:
+    CALCULADOR_DISPONIBLE = False
+
+
+# ============================================================
+# GENERADOR DE PDF
+# ============================================================
+
+try:
+    from reporte_pdf import generar_reporte_pdf
+    PDF_DISPONIBLE = True
+
+except ImportError:
+    PDF_DISPONIBLE = False
+
+
+# ============================================================
 # CONFIGURACIÓN
 # ============================================================
 
@@ -75,6 +103,10 @@ valores_iniciales = {
     "reporte_generado": False,
     "prospecto_id": None,
     "promo_uso_registrado": False,
+    "edad_retiro": 60,
+    "tipo_asignacion": "ninguna",
+    "meses_m40": 58,
+    "pdf_reporte_bytes": None,
 }
 
 for clave, valor in valores_iniciales.items():
@@ -91,54 +123,197 @@ st.markdown(
     """
     <style>
 
+    :root {
+        --azul-oscuro: #0B2545;
+        --azul-principal: #134074;
+        --azul-medio: #1B6CA8;
+        --azul-claro: #E8F1FA;
+        --azul-hover: #0F5A8F;
+        --verde-ok: #1E8A4C;
+        --gris-texto: #3B3B3B;
+        --gris-borde: #D9E2EC;
+    }
+
     .main .block-container {
-        max-width: 850px;
-        padding-top: 2rem;
+        max-width: 880px;
+        padding-top: 1.5rem;
         padding-bottom: 4rem;
+    }
+
+    /* ---------- ENCABEZADO ---------- */
+
+    .header-wrap {
+        text-align: center;
+        margin-bottom: 1.6rem;
     }
 
     .titulo {
         text-align: center;
-        font-size: 2.8rem;
+        font-size: 2.6rem;
         font-weight: 800;
-        margin-bottom: 0.2rem;
+        color: var(--azul-oscuro);
+        margin-bottom: 0.1rem;
+        letter-spacing: -0.5px;
     }
 
     .subtitulo {
         text-align: center;
-        font-size: 1.1rem;
-        margin-bottom: 2rem;
+        font-size: 1.05rem;
+        color: var(--azul-medio);
+        font-weight: 500;
+        margin-bottom: 0.4rem;
     }
 
-    .card {
-        padding: 1.4rem;
-        border-radius: 14px;
-        border: 1px solid rgba(128,128,128,0.25);
-        margin-bottom: 1rem;
+    .linea-divisora {
+        height: 4px;
+        width: 90px;
+        background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
+        margin: 0.6rem auto 1.8rem auto;
+        border-radius: 4px;
     }
+
+    /* ---------- TARJETAS ---------- */
+
+    .card {
+        padding: 1.5rem 1.6rem;
+        border-radius: 14px;
+        border: 1px solid var(--gris-borde);
+        background: #FFFFFF;
+        box-shadow: 0 2px 10px rgba(11, 37, 69, 0.06);
+        margin-bottom: 1.2rem;
+    }
+
+    .card h3 {
+        color: var(--azul-oscuro);
+        margin-top: 0;
+    }
+
+    .card-azul {
+        padding: 1.5rem 1.6rem;
+        border-radius: 14px;
+        background: var(--azul-claro);
+        border: 1px solid rgba(27, 108, 168, 0.25);
+        margin-bottom: 1.2rem;
+    }
+
+    /* ---------- PASO / SECCIÓN ---------- */
+
+    .paso-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--azul-oscuro);
+        color: white;
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        margin-bottom: 0.8rem;
+    }
+
+    /* ---------- PRECIO ---------- */
 
     .precio {
         text-align: center;
-        font-size: 2rem;
+        font-size: 2.4rem;
         font-weight: 800;
+        color: var(--azul-oscuro);
+        margin-bottom: 0.2rem;
+    }
+
+    .precio-detalle {
+        text-align: center;
+        font-size: 0.95rem;
+        color: var(--gris-texto);
+        opacity: 0.8;
+        margin-bottom: 0.6rem;
     }
 
     .centrado {
         text-align: center;
     }
 
+    /* ---------- LISTA DE BENEFICIOS ---------- */
+
+    .beneficios {
+        list-style: none;
+        padding-left: 0;
+        margin: 0.6rem 0 0.2rem 0;
+    }
+
+    .beneficios li {
+        padding: 0.35rem 0;
+        color: var(--gris-texto);
+        font-size: 0.98rem;
+    }
+
+    .beneficios li::before {
+        content: "✓";
+        color: var(--verde-ok);
+        font-weight: 800;
+        margin-right: 0.6rem;
+    }
+
+    /* ---------- BOTONES ---------- */
+
     .stButton > button {
         width: 100%;
         min-height: 3rem;
         border-radius: 10px;
         font-weight: 700;
+        border: none;
+        transition: transform 0.05s ease-in-out;
     }
+
+    .stButton > button:hover {
+        transform: translateY(-1px);
+    }
+
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, var(--azul-medio), var(--azul-oscuro));
+    }
+
+    div[data-testid="stDownloadButton"] > button {
+        width: 100%;
+        min-height: 3.2rem;
+        border-radius: 10px;
+        font-weight: 700;
+        background: linear-gradient(90deg, var(--verde-ok), #166B3A);
+        color: white;
+        border: none;
+    }
+
+    /* ---------- BANNER DE DESBLOQUEO ---------- */
+
+    .banner-desbloqueado {
+        background: linear-gradient(90deg, #E6F4EA, #EFFAF2);
+        border: 1px solid rgba(30, 138, 76, 0.35);
+        border-radius: 14px;
+        padding: 1.2rem 1.4rem;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .banner-desbloqueado .icono {
+        font-size: 1.8rem;
+    }
+
+    .banner-desbloqueado .texto-principal {
+        font-weight: 800;
+        color: var(--verde-ok);
+        font-size: 1.15rem;
+        margin: 0.3rem 0 0.1rem 0;
+    }
+
+    /* ---------- FOOTER ---------- */
 
     .footer {
         text-align: center;
         font-size: 0.8rem;
+        color: var(--gris-texto);
         opacity: 0.65;
         margin-top: 3rem;
+        line-height: 1.5;
     }
 
     </style>
@@ -154,14 +329,13 @@ st.markdown(
 def mostrar_encabezado():
 
     st.markdown(
-        '<div class="titulo">Pensión 40</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
         """
-        <div class="subtitulo">
-        Simulador financiero de pensión bajo Ley 73 del IMSS
+        <div class="header-wrap">
+            <div class="titulo">📊 Pensión 40</div>
+            <div class="subtitulo">
+                Simulador financiero de pensión bajo Ley 73 del IMSS
+            </div>
+            <div class="linea-divisora"></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -178,22 +352,20 @@ def mostrar_presentacion():
         """
         <div class="card">
 
-        <h3>📊 Calcula el potencial de tu pensión</h3>
+        <h3>Calcula el potencial de tu pensión</h3>
 
         Analizamos tu Constancia de Semanas Cotizadas del IMSS
         para determinar si perteneces al régimen de Ley 73 y
-        preparar tu escenario financiero.
+        preparar tu escenario financiero de Modalidad 40.
 
-        <br><br>
+        <p><strong>Necesitas:</strong></p>
 
-        <strong>Necesitas:</strong>
-
-        <br><br>
-
-        • Constancia de Semanas Cotizadas del IMSS<br>
-        • Nombre completo<br>
-        • Correo electrónico<br>
-        • WhatsApp
+        <ul class="beneficios">
+            <li>Constancia de Semanas Cotizadas del IMSS</li>
+            <li>Nombre completo</li>
+            <li>Correo electrónico</li>
+            <li>WhatsApp</li>
+        </ul>
 
         </div>
         """,
@@ -207,7 +379,11 @@ def mostrar_presentacion():
 
 def capturar_datos():
 
-    st.subheader("1. Tus datos")
+    st.markdown(
+        '<div class="paso-badge">PASO 1</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("Tus datos")
 
     nombre = st.text_input(
         "Nombre completo",
@@ -227,6 +403,39 @@ def capturar_datos():
         key="telefono_cliente",
     )
 
+    col_edad, col_asignacion = st.columns(2)
+
+    with col_edad:
+
+        edad_retiro = st.number_input(
+            "Edad de retiro a simular",
+            min_value=60,
+            max_value=65,
+            value=st.session_state.get("edad_retiro", 60),
+            step=1,
+            key="edad_retiro_input",
+            help="El cálculo de pensión Ley 73 aplica para edades entre 60 y 65 años.",
+        )
+
+    with col_asignacion:
+
+        opciones_asignacion = {
+            "Ninguna": "ninguna",
+            "Cónyuge (esposa/esposo)": "conyuge",
+            "Hijos": "hijos",
+            "Padres": "padres",
+            "Ayuda asistencial": "asistencia",
+        }
+
+        etiqueta_asignacion = st.selectbox(
+            "Asignación familiar",
+            options=list(opciones_asignacion.keys()),
+            key="asignacion_input",
+        )
+
+    st.session_state.edad_retiro = int(edad_retiro)
+    st.session_state.tipo_asignacion = opciones_asignacion[etiqueta_asignacion]
+
     st.session_state.datos_cliente = {
         "nombre": nombre.strip(),
         "correo": correo.strip(),
@@ -240,7 +449,11 @@ def capturar_datos():
 
 def cargar_pdf():
 
-    st.subheader("2. Sube tu Constancia de Semanas Cotizadas")
+    st.markdown(
+        '<div class="paso-badge">PASO 2</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("Sube tu Constancia de Semanas Cotizadas")
 
     st.write(
         "El documento debe ser el PDF emitido por el IMSS."
@@ -350,7 +563,35 @@ def procesar_informacion():
             # 4. Almacenar el ID generado por Supabase para futuras actualizaciones o descargas
             if prospecto_guardado and "id" in prospecto_guardado:
                 st.session_state.prospecto_id = prospecto_guardado["id"]
-                
+
+            # 5. Ejecutar el cálculo financiero real (pensión + Modalidad 40)
+            if CALCULADOR_DISPONIBLE:
+
+                try:
+                    uma_actual = obtener_uma()
+                except Exception:
+                    uma_actual = 113.14
+
+                try:
+
+                    st.session_state.resultado_calculo = calcular_escenario(
+                        sbc_promedio=sbc_float,
+                        semanas=semanas_int,
+                        edad=st.session_state.edad_retiro,
+                        uma=uma_actual,
+                        tipo_asignacion=st.session_state.tipo_asignacion,
+                        meses_modalidad_40=st.session_state.meses_m40,
+                    )
+
+                except CalculadorPensionError as error:
+                    st.session_state.resultado_calculo = None
+                    st.warning(
+                        f"No fue posible calcular tu escenario financiero: {error}"
+                    )
+
+            else:
+                st.session_state.resultado_calculo = None
+
         except Ley97Error as error:
             st.session_state.resultado_extraccion = None
             st.error("❌ Este documento corresponde al régimen de Ley 97 del IMSS.")
@@ -383,9 +624,14 @@ def mostrar_resultado():
 
     st.divider()
 
-    st.subheader("3. Resultado de tu análisis")
+    st.markdown(
+        '<div class="paso-badge">PASO 3</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("Resultado de tu análisis")
 
     resultado = st.session_state.resultado_extraccion
+    calculo = st.session_state.resultado_calculo
 
     semanas = resultado.get(
         "semanas_cotizadas",
@@ -408,7 +654,7 @@ def mostrar_resultado():
         unsafe_allow_html=True,
     )
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
 
@@ -433,11 +679,42 @@ def mostrar_resultado():
                 "No disponible",
             )
 
-    st.caption(
-        "El resultado es una estimación preliminar. "
-        "El cálculo financiero completo se generará "
-        "con el motor de simulación."
-    )
+    with col3:
+
+        if calculo:
+
+            pension_mensual = calculo.get(
+                "pension", {}
+            ).get("pension_final_mensual")
+
+            st.metric(
+                "Pensión mensual estimada",
+                f"${pension_mensual:,.2f}" if pension_mensual is not None else "No disponible",
+            )
+
+        else:
+
+            st.metric(
+                "Pensión mensual estimada",
+                "No disponible",
+            )
+
+    if calculo:
+
+        st.caption(
+            f"Estimación calculada para retiro a los "
+            f"{st.session_state.edad_retiro} años. "
+            "El reporte completo incluye la estrategia de "
+            "Modalidad 40, inversión y retorno estimado."
+        )
+
+    else:
+
+        st.caption(
+            "El resultado es una estimación preliminar. "
+            "El cálculo financiero completo se generará "
+            "con el motor de simulación."
+        )
 
 
 # ============================================================
@@ -446,7 +723,11 @@ def mostrar_resultado():
 
 def validar_promocion():
 
-    st.subheader("4. ¿Tienes un código promocional?")
+    st.markdown(
+        '<div class="paso-badge">PASO 4</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader("¿Tienes un código promocional?")
 
     st.write(
         "Si recibiste un código promocional de Pensión 40, "
@@ -576,8 +857,12 @@ def mostrar_acceso_reporte():
 
     st.divider()
 
+    st.markdown(
+        '<div class="paso-badge">PASO 5</div>',
+        unsafe_allow_html=True,
+    )
     st.subheader(
-        "5. Reporte financiero completo"
+        "Reporte financiero completo"
     )
 
     st.write(
@@ -590,11 +875,6 @@ def mostrar_acceso_reporte():
     # ========================================================
 
     if st.session_state.promo_validada:
-
-        st.success(
-            "🎉 Código promocional válido. "
-            "Tu reporte está desbloqueado."
-        )
 
         mostrar_descarga_reporte()
 
@@ -614,34 +894,27 @@ def mostrar_acceso_reporte():
 
     st.markdown(
         f"""
-        <div class="card">
+        <div class="card-azul">
 
         <div class="precio">
         ${precio:,.0f} MXN
         </div>
 
-        <div class="centrado">
-        Reporte financiero completo
+        <div class="precio-detalle">
+        Reporte financiero completo · pago único
         </div>
 
+        <ul class="beneficios">
+            <li>Proyección de pensión</li>
+            <li>Análisis de Modalidad 40</li>
+            <li>Inversión requerida</li>
+            <li>Proyección mes a mes</li>
+            <li>Costo acumulado</li>
+            <li>Retorno de inversión (ROI)</li>
+            <li>Escenarios de retiro</li>
+        </ul>
+
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.write(
-        "El reporte incluye:"
-    )
-
-    st.markdown(
-        """
-        ✓ Proyección de pensión<br>
-        ✓ Análisis de Modalidad 40<br>
-        ✓ Inversión requerida<br>
-        ✓ Proyección mes a mes<br>
-        ✓ Costo acumulado<br>
-        ✓ Retorno de inversión (ROI)<br>
-        ✓ Escenarios de retiro
         """,
         unsafe_allow_html=True,
     )
@@ -674,8 +947,17 @@ def mostrar_acceso_reporte():
 
 def mostrar_descarga_reporte():
 
-    st.success(
-        "Tu reporte financiero está desbloqueado."
+    st.markdown(
+        """
+        <div class="banner-desbloqueado">
+            <div class="icono">🔓</div>
+            <div class="texto-principal">
+                Tu reporte financiero está desbloqueado
+            </div>
+            <div>Descárgalo en PDF a continuación.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     # ========================================================
@@ -687,17 +969,79 @@ def mostrar_descarga_reporte():
         registrar_uso_promo()
 
     # ========================================================
-    # PDF
+    # VALIDACIONES PREVIAS
     # ========================================================
 
-    st.info(
-        "El PDF ejecutivo será generado por correo.py "
-        "cuando conectemos el motor de reportes."
-    )
+    if not PDF_DISPONIBLE:
 
-    st.button(
-        "📥 Descargar reporte PDF",
-        disabled=True,
+        st.error(
+            "El módulo reporte_pdf.py todavía no está "
+            "disponible correctamente."
+        )
+
+        return
+
+    if not st.session_state.resultado_calculo:
+
+        st.warning(
+            "Aún no contamos con el cálculo financiero completo "
+            "para generar tu PDF. Vuelve a procesar tu "
+            "Constancia de Semanas Cotizadas."
+        )
+
+        return
+
+    # ========================================================
+    # GENERAR PDF (una sola vez, se guarda en session_state)
+    # ========================================================
+
+    if st.session_state.pdf_reporte_bytes is None:
+
+        with st.spinner("Generando tu reporte PDF..."):
+
+            try:
+
+                nombre_cliente = st.session_state.datos_cliente.get(
+                    "nombre", "Cliente Pensión 40"
+                )
+
+                st.session_state.pdf_reporte_bytes = generar_reporte_pdf(
+                    nombre_cliente=nombre_cliente,
+                    resultado_calculo=st.session_state.resultado_calculo,
+                )
+
+                st.session_state.reporte_generado = True
+
+            except Exception as error:
+
+                st.error(
+                    "No fue posible generar el PDF de tu reporte."
+                )
+
+                st.exception(error)
+
+                return
+
+    # ========================================================
+    # BOTÓN DE DESCARGA REAL
+    # ========================================================
+
+    nombre_archivo = "reporte_pension40.pdf"
+
+    nombre_cliente_actual = st.session_state.datos_cliente.get("nombre", "")
+
+    if nombre_cliente_actual:
+
+        nombre_archivo = (
+            "reporte_pension40_"
+            f"{nombre_cliente_actual.strip().replace(' ', '_').lower()}.pdf"
+        )
+
+    st.download_button(
+        label="📥 Descargar reporte PDF",
+        data=st.session_state.pdf_reporte_bytes,
+        file_name=nombre_archivo,
+        mime="application/pdf",
         key="btn_descarga_pdf",
     )
 
