@@ -72,6 +72,11 @@ def _construir_estilos():
 # Módulo: reporte_pdf.py - Bloque 2 de 2
 # ============================================================
 
+# ============================================================
+# PENSION 40
+# Módulo: reporte_pdf.py - Bloque 2 de 2 (CORREGIDO)
+# ============================================================
+
 def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
     """
     Construye el dictamen financiero oficial en PDF con la tabla comparativa
@@ -133,7 +138,7 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
 
     datos_auditoria = [
         [Paragraph(f"<b>Asegurado:</b> {nombre_cliente}", estilos["cuerpo"]),
-         Paragraph(f"<b>Fecha de emisión:</b> {fecha_actual}",延 estilos["cuerpo"])],
+         Paragraph(f"<b>Fecha de emisión:</b> {fecha_actual}", estilos["cuerpo"])],
         [Paragraph(f"<b>Régimen Validado:</b> Ley 1973 del Seguro Social", estilos["cuerpo"]),
          Paragraph(f"<b>Edad de Retiro Evaluada:</b> {params.get('edad')} años", estilos["cuerpo"])]
     ]
@@ -143,16 +148,16 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
     story.append(Spacer(1, 14))
 
     # 3. TABLA COMPARATIVA FINANCIERA DE ALTO IMPACTO (SIDE-BY-SIDE)
-    story.append(Paragraph("🔄 Análisis Cruzado de Escenarios de Retiro",延 estilos["seccion"]))
+    story.append(Paragraph("🔄 Análisis Cruzado de Escenarios de Retiro", estilos["seccion"]))
     
     filas_comparativas = [
         [Paragraph("Factor de Análisis", estilos["tabla_header"]), 
-         Paragraph("Pensión Normal (Sin Estrategia)",延 estilos["tabla_header"]), 
+         Paragraph("Pensión Normal (Sin Estrategia)", estilos["tabla_header"]), 
          Paragraph("Plan Optimizado Pensión 40", estilos["tabla_header"])],
         
         [Paragraph("Semanas Reconocidas", estilos["tabla_texto"]), 
          Paragraph(f"{int(semanas_actuales):,} semanas", estilos["tabla_texto"]), 
-         Paragraph(f"{int(semanas_totales_m40):,} semanas",延 estilos["tabla_texto"])],
+         Paragraph(f"{int(semanas_totales_m40):,} semanas", estilos["tabla_texto"])],
         
         [Paragraph("Salario Diario Promedio (SBC)", estilos["tabla_texto"]), 
          Paragraph(f"${sbc_actual:,.2f} MXN", estilos["tabla_texto"]), 
@@ -163,15 +168,15 @@ def generar_reporte_pdf(nombre_cliente: str, resultado_calculo: dict) -> bytes:
          Paragraph(f"${pago_mensual_estimado:,.2f} MXN", estilos["tabla_texto"])],
         
         [Paragraph("Inversión Total Acumulada", estilos["tabla_texto"]), 
-         Paragraph("$0.00 MXN",延 estilos["tabla_texto"]), 
+         Paragraph("$0.00 MXN", estilos["tabla_texto"]), 
          Paragraph(f"${inversion_total_m40:,.2f} MXN", estilos["tabla_texto"])],
         
         [Paragraph("<b>Monto de Pensión Mensual</b>", estilos["tabla_texto"]), 
-         Paragraph(f"<b>${pension_normal_mensual:,.2f} MXN</b>",延 estilos["tabla_texto"]), 
+         Paragraph(f"<b>${pension_normal_mensual:,.2f} MXN</b>", estilos["tabla_texto"]), 
          Paragraph(f"<b>${pension_final_m40:,.2f} MXN</b>", estilos["tabla_texto"])],
         
         [Paragraph("<b>INCREMENTO NETO GANADO</b>", estilos["tabla_texto"]), 
-         Paragraph("Base de Medición",延 estilos["tabla_texto"]), 
+         Paragraph("Base de Medición", estilos["tabla_texto"]), 
          Paragraph(f"<b>+${ganancia_neta_mensual:,.2f} MXN / mes</b>", estilos["tabla_texto"])]
     ]
     
